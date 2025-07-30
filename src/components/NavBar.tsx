@@ -1,10 +1,11 @@
 ﻿'use client';
 
-import { Fragment, useState } from 'react';
+import { useEffect, useRef, useState, Fragment } from 'react';
 import { Disclosure, Menu, Transition } from '@headlessui/react';
 import { ChevronDownIcon, Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabaseClient';
 
 const topContact = {
   phone: '+1 (970) 221-2425',
@@ -79,21 +80,94 @@ function classNames(...classes: string[]) {
 
 export default function NavBar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [dashboardRoute, setDashboardRoute] = useState('/');
+
+  useEffect(() => {
+    const getSessionAndRole = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      setIsLoggedIn(!!session);
+
+      if (session?.user) {
+        const { data: roleData } = await supabase
+          .from('user_roles')
+          .select('role_id')
+          .eq('user_id', session.user.id)
+          .single();
+
+        const { data: roleNameData } = await supabase
+          .from('roles')
+          .select('name')
+          .eq('id', roleData?.role_id)
+          .single();
+
+        switch (roleNameData?.name) {
+          case 'super_admin':
+            setDashboardRoute('/super-admin');
+            break;
+          case 'admin':
+            setDashboardRoute('/admin');
+            break;
+          case 'volunteer':
+            setDashboardRoute('/volunteer');
+            break;
+          case 'teacher':
+            setDashboardRoute('/teacher');
+            break;
+          case 'student':
+            setDashboardRoute('/student');
+            break;
+          case 'member':
+            setDashboardRoute('/member');
+            break;
+          default:
+            setDashboardRoute('/user');
+        }
+      }
+    };
+
+    getSessionAndRole();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session);
+    });
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  const handleMouseEnter = (name: string) => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setActiveDropdown(name);
+  };
+
+  const handleMouseLeave = () => {
+    timeoutRef.current = setTimeout(() => {
+      setActiveDropdown(null);
+    }, 200);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setIsLoggedIn(false);
+    router.push('/');
+  };
 
   return (
     <div>
-      {/* Top bar */}
+      {/* Top Contact Bar */}
       <div className="bg-cyan-900 text-white text-sm px-4 py-1 flex justify-between items-center">
-        <div className="flex items-center gap-2">
-          <span>📞 {topContact.phone}</span>
-        </div>
-        <div>
-          <span>📧 {topContact.email}</span>
-        </div>
+        <span>📞 {topContact.phone}</span>
+        <span>📧 {topContact.email}</span>
       </div>
 
-      {/* Main navigation */}
+      {/* Main Navigation */}
       <Disclosure as="nav" className="bg-white shadow">
         {({ open }) => (
           <>
@@ -103,15 +177,15 @@ export default function NavBar() {
                   ICFC
                 </Link>
 
-                {/* Desktop menu */}
+                {/* Desktop Menu */}
                 <div className="hidden md:flex space-x-6 items-center">
                   {menu.map((item) =>
                     item.submenu ? (
                       <div
                         key={item.name}
                         className="relative"
-                        onMouseEnter={() => setActiveDropdown(item.name)}
-                        onMouseLeave={() => setActiveDropdown(null)}
+                        onMouseEnter={() => handleMouseEnter(item.name)}
+                        onMouseLeave={handleMouseLeave}
                       >
                         <button
                           onClick={() =>
@@ -151,26 +225,82 @@ export default function NavBar() {
                       </Link>
                     )
                   )}
+
                   <Link
                     href="/donate"
-                    className={classNames(
-                      pathname === '/donate'
-                        ? 'bg-red-700'
-                        : 'bg-red-600 hover:bg-red-700',
-                      'text-white px-4 py-1 rounded font-medium'
-                    )}
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-1 rounded font-medium"
                   >
                     Donate
                   </Link>
-                  <Link
-                    href="/login"
-                    className="bg-cyan-700 hover:bg-cyan-800 text-white px-4 py-1 rounded font-medium"
-                  >
-                    Login (myPortal)
-                  </Link>
+
+                  {!isLoggedIn ? (
+                    <Link
+                      href="/login"
+                      className="bg-cyan-700 hover:bg-cyan-800 text-white px-4 py-1 rounded font-medium"
+                    >
+                      Login (myPortal)
+                    </Link>
+                  ) : (
+                    <Menu as="div" className="relative inline-block text-left">
+                      <Menu.Button className="bg-cyan-700 text-white px-4 py-1 rounded hover:bg-cyan-800 font-medium">
+                        My Profile
+                      </Menu.Button>
+                      <Transition
+                        as={Fragment}
+                        enter="transition ease-out duration-100"
+                        enterFrom="transform opacity-0 scale-95"
+                        enterTo="transform opacity-100 scale-100"
+                        leave="transition ease-in duration-75"
+                        leaveFrom="transform opacity-100 scale-100"
+                        leaveTo="transform opacity-0 scale-95"
+                      >
+                        <Menu.Items className="absolute right-0 z-30 mt-2 w-48 origin-top-right bg-white border border-gray-200 rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                          <Menu.Item>
+                            {({ active }) => (
+                              <Link
+                                href="/my-profile"
+                                className={classNames(
+                                  active ? 'bg-gray-100' : '',
+                                  'block px-4 py-2 text-sm text-gray-700'
+                                )}
+                              >
+                                View Profile
+                              </Link>
+                            )}
+                          </Menu.Item>
+                          <Menu.Item>
+                            {({ active }) => (
+                              <Link
+                                href={dashboardRoute}
+                                className={classNames(
+                                  active ? 'bg-gray-100' : '',
+                                  'block px-4 py-2 text-sm text-gray-700'
+                                )}
+                              >
+                                Dashboard
+                              </Link>
+                            )}
+                          </Menu.Item>
+                          <Menu.Item>
+                            {({ active }) => (
+                              <button
+                                onClick={handleLogout}
+                                className={classNames(
+                                  active ? 'bg-gray-100' : '',
+                                  'block w-full text-left px-4 py-2 text-sm text-red-600'
+                                )}
+                              >
+                                Logout
+                              </button>
+                            )}
+                          </Menu.Item>
+                        </Menu.Items>
+                      </Transition>
+                    </Menu>
+                  )}
                 </div>
 
-                {/* Mobile menu button */}
+                {/* Mobile Menu Toggle */}
                 <div className="flex md:hidden">
                   <Disclosure.Button className="text-cyan-900">
                     {open ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
@@ -179,7 +309,7 @@ export default function NavBar() {
               </div>
             </div>
 
-            {/* Mobile menu */}
+            {/* Mobile Menu Panel */}
             <Disclosure.Panel className="md:hidden px-4 pb-4">
               {menu.map((item) =>
                 item.submenu ? (
@@ -205,23 +335,43 @@ export default function NavBar() {
                   </Link>
                 )
               )}
+
               <Link
                 href="/donate"
-                className={classNames(
-                  pathname === '/donate'
-                    ? 'bg-red-700'
-                    : 'bg-red-600 hover:bg-red-700',
-                  'text-white px-4 py-1 rounded font-medium block mt-2'
-                )}
+                className="block bg-red-600 text-white px-4 py-1 rounded font-medium mt-2"
               >
                 Donate
               </Link>
-              <Link
-                href="/login"
-                className="bg-cyan-700 hover:bg-cyan-800 text-white px-4 py-1 rounded font-medium block mt-2"
-              >
-                Login (myPortal)
-              </Link>
+
+              {!isLoggedIn ? (
+                <Link
+                  href="/login"
+                  className="block bg-cyan-700 text-white px-4 py-1 rounded font-medium mt-2"
+                >
+                  Login (myPortal)
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    href="/my-profile"
+                    className="block text-gray-800 hover:text-cyan-700 font-medium mt-2"
+                  >
+                    View Profile
+                  </Link>
+                  <Link
+                    href={dashboardRoute}
+                    className="block text-gray-800 hover:text-cyan-700 font-medium mt-2"
+                  >
+                    Dashboard
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="block w-full text-left text-red-600 px-4 py-2 hover:bg-gray-100"
+                  >
+                    Logout
+                  </button>
+                </>
+              )}
             </Disclosure.Panel>
           </>
         )}
