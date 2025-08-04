@@ -8,21 +8,23 @@ import { supabase } from '@/lib/supabaseClient';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [warning, setWarning] = useState('');
   const router = useRouter();
 
   const handleLogin = async () => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      alert(error.message);
+      setWarning(error.message);
       return;
     }
 
     const user = data.user;
 
-    // ✅ Insert into users table if missing
+    // Insert into users table if missing
     const { data: existingUser } = await supabase
       .from('users')
       .select('*')
@@ -33,7 +35,7 @@ export default function LoginPage() {
       await supabase.from('users').insert({ id: user.id, email: user.email });
     }
 
-    // ✅ Assign 'user' role if no role exists
+    // Assign 'user' role if no role exists
     const { data: userRole } = await supabase
       .from('user_roles')
       .select('*')
@@ -55,7 +57,7 @@ export default function LoginPage() {
       }
     }
 
-    // ✅ Check if profile exists
+    // Check for profile
     const { data: profile } = await supabase
       .from('profiles')
       .select('id')
@@ -67,23 +69,41 @@ export default function LoginPage() {
       return;
     }
 
-    // ✅ Redirect based on role logic from centralized route
+    // Redirect to role-based dashboard
     router.push('/redirect');
   };
 
   const handleSignup = async () => {
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (password.length < 12) {
+      setWarning('Password must be at least 12 characters.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setWarning('Passwords do not match.');
+      return;
+    }
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/complete-profile`,
+      },
+    });
 
     if (error) {
-      alert(error.message);
+      setWarning(error.message);
     } else {
-      alert('Signup successful! Please check your email and verify before logging in.');
+      setWarning('');
+      alert('Signup successful! Please verify your email before logging in.');
       setIsLogin(true);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setWarning('');
     setLoading(true);
 
     if (isLogin) {
@@ -96,8 +116,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="max-w-md mx-auto mt-16 p-6 bg-white shadow rounded">
-      <h1 className="text-2xl font-bold mb-4 text-center">
+    <div className="max-w-md mx-auto mt-20 p-6 bg-white rounded shadow-md font-body">
+      <h1 className="text-2xl font-heading text-primary text-center mb-6">
         {isLogin ? 'Login to ICFC' : 'Create an Account'}
       </h1>
 
@@ -120,9 +140,24 @@ export default function LoginPage() {
           required
         />
 
+        {!isLogin && (
+          <input
+            type="password"
+            className="w-full px-3 py-2 border rounded"
+            placeholder="Confirm Password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+          />
+        )}
+
+        {warning && (
+          <div className="text-red-600 text-sm font-medium">{warning}</div>
+        )}
+
         <button
           type="submit"
-          className="w-full bg-cyan-700 hover:bg-cyan-800 text-white py-2 rounded"
+          className="w-full bg-primary hover:bg-green-800 text-white font-bold py-2 rounded transition"
           disabled={loading}
         >
           {loading ? 'Please wait...' : isLogin ? 'Login' : 'Sign Up'}
@@ -131,7 +166,7 @@ export default function LoginPage() {
 
       {isLogin && (
         <div className="text-sm text-center mt-2">
-          <Link href="/forgot-password" className="text-cyan-700 underline">
+          <Link href="/forgot-password" className="text-primary underline">
             Forgot Password?
           </Link>
         </div>
@@ -144,7 +179,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => setIsLogin(false)}
-              className="text-cyan-700 underline"
+              className="text-secondary underline"
             >
               Sign up
             </button>
@@ -155,7 +190,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => setIsLogin(true)}
-              className="text-cyan-700 underline"
+              className="text-primary underline"
             >
               Login
             </button>

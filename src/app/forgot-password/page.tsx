@@ -10,55 +10,56 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState('');
 
   const handleReset = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setError('');
+    e.preventDefault();
+    setError('');
 
-  // Check if email exists in profiles table
-  const { data: userProfile, error: fetchError } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('email', email)
-    .single();
+    // Check if email exists in profiles table
+    const { data: userProfile, error: fetchError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', email)
+      .single();
 
-  if (fetchError || !userProfile) {
-    setError('Email not found. Please sign up first.');
-    return;
-  }
+    if (fetchError || !userProfile) {
+      setError('Email not found. Please sign up first.');
+      return;
+    }
 
-  // Proceed with sending reset link
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${location.origin}/reset-password`,
-  });
+    // Send password reset email
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${location.origin}/reset-password`,
+    });
 
-  if (error) {
-    setError(error.message);
-  } else {
-    setSent(true);
-  }
-};
-
+    if (error) {
+      setError(error.message);
+    } else {
+      setSent(true);
+    }
+  };
 
   return (
-    <div className="max-w-md mx-auto mt-16 p-6 bg-white shadow rounded">
-      <h1 className="text-2xl font-bold mb-4 text-center">Reset Your Password</h1>
+    <div className="max-w-md mx-auto mt-20 mb-16 bg-white shadow-lg rounded-lg p-8 font-body">
+      <h1 className="text-2xl font-title text-center text-primary mb-6">
+        RESET YOUR PASSWORD
+      </h1>
 
       {sent ? (
-        <p className="text-green-600 text-center">
-          Password reset email sent! Please check your inbox.
+        <p className="text-green-600 text-center font-medium">
+          ✅ Password reset email sent! Please check your inbox.
         </p>
       ) : (
-        <form onSubmit={handleReset} className="space-y-4">
+        <form onSubmit={handleReset} className="space-y-5">
           <input
             type="email"
-            className="w-full px-3 py-2 border rounded"
-            placeholder="Enter your email"
+            className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary"
+            placeholder="Enter your email address"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
           />
           <button
             type="submit"
-            className="w-full bg-cyan-700 hover:bg-cyan-800 text-white py-2 rounded"
+            className="w-full bg-primary hover:bg-[#004d00] text-white font-heading py-2 rounded transition"
           >
             Send Reset Link
           </button>
@@ -66,9 +67,9 @@ export default function ForgotPasswordPage() {
       )}
 
       {error && (
-        <p className="text-red-600 text-center mt-2">
+        <p className="text-red-600 text-center mt-4">
           {error}
-          <Link href="/signup" className="text-cyan-700 underline ml-1">
+          <Link href="/signup" className="text-secondary underline ml-2">
             Sign up
           </Link>
         </p>

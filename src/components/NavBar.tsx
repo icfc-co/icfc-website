@@ -6,6 +6,7 @@ import { ChevronDownIcon, Bars3Icon, XMarkIcon } from '@heroicons/react/24/outli
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { convertToDirectGoogleDriveURL } from '@/lib/utils';
 
 const topContact = {
   phone: '+1 (970) 221-2425',
@@ -13,12 +14,12 @@ const topContact = {
 };
 
 const menu = [
+    { name: 'Home', href: '/' },
   { name: 'About', href: '/about' },
   {
     name: 'Services',
     submenu: [
-      { name: 'Nikah', href: '/services/nikah' },
-      { name: 'Matrimony', href: '/services/matrimony' },
+      { name: 'Nikah/Matrimony', href: '/services/nikah-matrimony' },
       { name: 'Ruqyah', href: '/services/ruqyah' },
       { name: 'Social Services', href: '/services/social' },
       { name: 'Special Needs', href: '/services/special-needs' },
@@ -85,6 +86,7 @@ export default function NavBar() {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [dashboardRoute, setDashboardRoute] = useState('/');
+  const [logoUrl, setLogoUrl] = useState('');
 
   useEffect(() => {
     const getSessionAndRole = async () => {
@@ -131,7 +133,24 @@ export default function NavBar() {
       }
     };
 
+    const fetchLogo = async () => {
+      const { data, error } = await supabase
+      .from('photos')
+      .select('url')
+      .eq('title', 'logo')
+      .single(); // since we expect only one
+
+
+      if (!error && data?.url) {
+        setLogoUrl(data.url);
+      } else {
+        console.error('Error fetching logo:', error?.message);
+      }
+    };
+
+
     getSessionAndRole();
+    fetchLogo();
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsLoggedIn(!!session);
@@ -161,23 +180,20 @@ export default function NavBar() {
 
   return (
     <div>
-      {/* Top Contact Bar */}
-      <div className="bg-cyan-900 text-white text-sm px-4 py-1 flex justify-between items-center">
+      {/* Top Bar */}
+      <div className="bg-primary text-white text-sm px-4 py-1 flex justify-between items-center font-body">
         <span>📞 {topContact.phone}</span>
         <span>📧 {topContact.email}</span>
       </div>
 
-      {/* Main Navigation */}
       <Disclosure as="nav" className="bg-white shadow">
         {({ open }) => (
           <>
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 font-body">
               <div className="flex justify-between h-16 items-center">
-                <Link href="/" className="text-xl font-semibold text-cyan-900">
-                  ICFC
-                </Link>
+                
 
-                {/* Desktop Menu */}
+                {/* Desktop Navigation */}
                 <div className="hidden md:flex space-x-6 items-center">
                   {menu.map((item) =>
                     item.submenu ? (
@@ -187,12 +203,7 @@ export default function NavBar() {
                         onMouseEnter={() => handleMouseEnter(item.name)}
                         onMouseLeave={handleMouseLeave}
                       >
-                        <button
-                          onClick={() =>
-                            setActiveDropdown(activeDropdown === item.name ? null : item.name)
-                          }
-                          className="inline-flex items-center text-gray-700 hover:text-cyan-700 font-medium"
-                        >
+                        <button className="inline-flex items-center text-gray-700 hover:text-primary font-medium">
                           {item.name}
                           <ChevronDownIcon className="ml-1 h-4 w-4" />
                         </button>
@@ -216,8 +227,8 @@ export default function NavBar() {
                         href={item.href}
                         className={classNames(
                           pathname === item.href
-                            ? 'text-cyan-700 font-semibold'
-                            : 'text-gray-700 hover:text-cyan-700',
+                            ? 'text-primary font-semibold'
+                            : 'text-gray-700 hover:text-primary',
                           'font-medium'
                         )}
                       >
@@ -226,9 +237,10 @@ export default function NavBar() {
                     )
                   )}
 
+                  {/* Donate + Login/Profile */}
                   <Link
                     href="/donate"
-                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-1 rounded font-medium"
+                    className="bg-secondary hover:bg-yellow-500 text-black px-4 py-1 rounded font-semibold"
                   >
                     Donate
                   </Link>
@@ -236,13 +248,13 @@ export default function NavBar() {
                   {!isLoggedIn ? (
                     <Link
                       href="/login"
-                      className="bg-cyan-700 hover:bg-cyan-800 text-white px-4 py-1 rounded font-medium"
+                      className="bg-primary hover:bg-green-800 text-white px-4 py-1 rounded font-medium"
                     >
                       Login (myPortal)
                     </Link>
                   ) : (
                     <Menu as="div" className="relative inline-block text-left">
-                      <Menu.Button className="bg-cyan-700 text-white px-4 py-1 rounded hover:bg-cyan-800 font-medium">
+                      <Menu.Button className="bg-primary text-white px-4 py-1 rounded hover:bg-green-800 font-medium">
                         My Profile
                       </Menu.Button>
                       <Transition
@@ -300,9 +312,9 @@ export default function NavBar() {
                   )}
                 </div>
 
-                {/* Mobile Menu Toggle */}
+                {/* Mobile menu toggle */}
                 <div className="flex md:hidden">
-                  <Disclosure.Button className="text-cyan-900">
+                  <Disclosure.Button className="text-primary">
                     {open ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
                   </Disclosure.Button>
                 </div>
@@ -310,16 +322,16 @@ export default function NavBar() {
             </div>
 
             {/* Mobile Menu Panel */}
-            <Disclosure.Panel className="md:hidden px-4 pb-4">
+            <Disclosure.Panel className="md:hidden px-4 pb-4 font-body">
               {menu.map((item) =>
                 item.submenu ? (
                   <div key={item.name}>
-                    <div className="font-medium text-gray-800">{item.name}</div>
+                    <div className="font-semibold text-gray-800">{item.name}</div>
                     {item.submenu.map((sub) => (
                       <Link
                         key={sub.name}
                         href={sub.href}
-                        className="block pl-4 text-gray-600 hover:text-cyan-700 text-sm"
+                        className="block pl-4 text-gray-600 hover:text-primary text-sm"
                       >
                         {sub.name}
                       </Link>
@@ -329,7 +341,7 @@ export default function NavBar() {
                   <Link
                     key={item.name}
                     href={item.href}
-                    className="block text-gray-800 hover:text-cyan-700 font-medium"
+                    className="block text-gray-800 hover:text-primary font-medium"
                   >
                     {item.name}
                   </Link>
@@ -338,7 +350,7 @@ export default function NavBar() {
 
               <Link
                 href="/donate"
-                className="block bg-red-600 text-white px-4 py-1 rounded font-medium mt-2"
+                className="block bg-secondary text-black px-4 py-1 rounded font-semibold mt-2"
               >
                 Donate
               </Link>
@@ -346,7 +358,7 @@ export default function NavBar() {
               {!isLoggedIn ? (
                 <Link
                   href="/login"
-                  className="block bg-cyan-700 text-white px-4 py-1 rounded font-medium mt-2"
+                  className="block bg-primary text-white px-4 py-1 rounded font-medium mt-2"
                 >
                   Login (myPortal)
                 </Link>
@@ -354,13 +366,13 @@ export default function NavBar() {
                 <>
                   <Link
                     href="/my-profile"
-                    className="block text-gray-800 hover:text-cyan-700 font-medium mt-2"
+                    className="block text-gray-800 hover:text-primary font-medium mt-2"
                   >
                     View Profile
                   </Link>
                   <Link
                     href={dashboardRoute}
-                    className="block text-gray-800 hover:text-cyan-700 font-medium mt-2"
+                    className="block text-gray-800 hover:text-primary font-medium mt-2"
                   >
                     Dashboard
                   </Link>
