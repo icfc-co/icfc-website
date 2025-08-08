@@ -1,8 +1,26 @@
-'use client';
+﻿'use client';
+import { useEffect, useRef, useState, Fragment } from 'react';
 import { BookOpenIcon, UsersIcon, HeartIcon } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
+import { s3ImageService } from '../app/services/s3ImageService';
+
 
 export default function HomePage() {
+
+  const [welcomeUrl, setWelcomeUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const url = await s3ImageService.getImage('WelcomeICFC.png');
+        setWelcomeUrl(url);
+      } catch (err) {
+        console.error('Failed to load welcome image:', err);
+        setWelcomeUrl(null);
+      }
+    })();
+  }, []);
+
   return (
     <>
       {/* Hero Banner */}
@@ -11,7 +29,7 @@ export default function HomePage() {
         <div
           className="absolute inset-0 bg-no-repeat bg-cover bg-center will-change-transform"
           style={{
-            backgroundImage: "url('/images/WelcomeICFC.jpg')",
+            backgroundImage: welcomeUrl ? `url(${welcomeUrl})` : undefined,
             backgroundAttachment: 'fixed', // enables parallax
           }}
         >

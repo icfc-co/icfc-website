@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useState, ChangeEvent } from "react";
+import { s3ImageService } from "@/app/services/s3ImageService";
 
 export default function TestUploadPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -9,14 +10,6 @@ export default function TestUploadPage() {
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
   const [fileList, setFileList] = useState<string[]>([]);
   const [fetchedImage, setFetchedImage] = useState<string | null>(null);
-
-  const endpoint =
-    "https://iutrkewvhchqskjbuzqc.functions.supabase.co/functions/v1/manage-s3-images";
-
-  const authHeader = {
-    Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
-    "Content-Type": "application/json",
-  };
 
   const uploadFileToS3 = async () => {
     if (!file) return;
@@ -27,18 +20,7 @@ export default function TestUploadPage() {
       const fileName = file.name;
       const fileType = file.type;
 
-      const presignRes = await fetch(endpoint, {
-        method: "POST",
-        headers: authHeader,
-        body: JSON.stringify({
-          operation: "upload",
-          fileName,
-          fileType,
-        }),
-      });
-
-      if (!presignRes.ok) throw new Error(await presignRes.text());
-      const { url: presignedUrl } = await presignRes.json();
+      const presignedUrl = await s3ImageService.uploadImage(fileName, fileType);
 
       const uploadRes = await fetch(presignedUrl, {
         method: "PUT",
@@ -48,7 +30,7 @@ export default function TestUploadPage() {
 
       if (!uploadRes.ok) throw new Error(await uploadRes.text());
 
-      setUploadedUrl(presignedUrl); // use full URL
+      setUploadedUrl(presignedUrl);
       setMessage("✅ Upload successful!");
     } catch (err: any) {
       setMessage("❌ Upload failed. " + (err.message || ""));
@@ -59,14 +41,7 @@ export default function TestUploadPage() {
 
   const listImages = async () => {
     try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: authHeader,
-        body: JSON.stringify({ operation: "list" }),
-      });
-
-      if (!res.ok) throw new Error(await res.text());
-      const { files } = await res.json();
+      const files = await s3ImageService.listImages();
       setFileList(files);
       setMessage("✅ Files listed.");
     } catch (err: any) {
@@ -76,15 +51,9 @@ export default function TestUploadPage() {
 
   const fetchOneImage = async (fileName: string) => {
     try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: authHeader,
-        body: JSON.stringify({ operation: "fetch", fileName }),
-      });
-
-      if (!res.ok) throw new Error(await res.text());
-      const { url } = await res.json();
-      setFetchedImage(url); // use full URL with signature
+      const url = await s3ImageService.getImage(fileName);
+      if (!url) throw new Error("URL not returned");
+      setFetchedImage(url);
       setMessage("✅ Image URL fetched.");
     } catch (err: any) {
       setMessage("❌ Failed to fetch image. " + (err.message || ""));
@@ -93,13 +62,7 @@ export default function TestUploadPage() {
 
   const deleteImage = async (fileName: string) => {
     try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: authHeader,
-        body: JSON.stringify({ operation: "delete", fileName }),
-      });
-
-      if (!res.ok) throw new Error(await res.text());
+      await s3ImageService.deleteImage(fileName);
       setMessage(`✅ Deleted ${fileName}`);
       listImages(); // refresh
     } catch (err: any) {

@@ -6,7 +6,8 @@ import { ChevronDownIcon, Bars3Icon, XMarkIcon } from '@heroicons/react/24/outli
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
-import { convertToDirectGoogleDriveURL } from '@/lib/utils';
+import { s3ImageService } from '../app/services/s3ImageService';
+
 
 const topContact = {
   phone: '+1 (970) 221-2425',
@@ -87,6 +88,7 @@ export default function NavBar() {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [dashboardRoute, setDashboardRoute] = useState('/');
   const [logoUrl, setLogoUrl] = useState('');
+  
 
   useEffect(() => {
     const getSessionAndRole = async () => {
@@ -134,21 +136,17 @@ export default function NavBar() {
     };
 
     const fetchLogo = async () => {
-      const { data, error } = await supabase
-      .from('photos')
-      .select('url')
-      .eq('title', 'logo')
-      .single(); // since we expect only one
+    try {
+      const url = await s3ImageService.getImage('ICFC-Logo.png');
+      setLogoUrl(url);
+    } catch (error) {
+      console.error("Failed to load logo image:", error);
+    }
+  };
 
+  
 
-      if (!error && data?.url) {
-        setLogoUrl(data.url);
-      } else {
-        console.error('Error fetching logo:', error?.message);
-      }
-    };
-
-
+  fetchLogo();
     getSessionAndRole();
     fetchLogo();
 
@@ -191,7 +189,16 @@ export default function NavBar() {
           <>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 font-body">
               <div className="flex justify-between h-16 items-center">
-                
+                {/* Logo with Home Link on the Left */}
+                  <Link href="/" className="flex items-center space-x-2">
+                    {logoUrl && (
+                      <img
+                        src={logoUrl}
+                        alt="ICFC Logo"
+                        className="h-12 w-auto object-contain"
+                      />
+                    )}
+                  </Link>
 
                 {/* Desktop Navigation */}
                 <div className="hidden md:flex space-x-6 items-center">
