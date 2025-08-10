@@ -241,7 +241,7 @@ export default function NavBar() {
 
                   {/* Donate button */}
                   <Link
-                    href="/donate"
+                    href="https://us.mohid.co/co/fortcollins/icfc/masjid/online/donation"
                     className="bg-secondary hover:bg-yellow-500 text-black px-4 py-1 rounded font-semibold"
                   >
                     Donate
@@ -372,7 +372,7 @@ export default function NavBar() {
 
               {/* Donate */}
               <Link
-                href="/donate"
+                href="https://us.mohid.co/co/fortcollins/icfc/masjid/online/donation"
                 className="block bg-secondary text-black px-4 py-1 rounded font-semibold mt-2"
               >
                 Donate
