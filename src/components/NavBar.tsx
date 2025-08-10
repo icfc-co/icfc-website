@@ -8,73 +8,27 @@ import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { s3ImageService } from '../app/services/s3ImageService';
 
-
 const topContact = {
   phone: '+1 (970) 221-2425',
   email: 'info@icfc.org',
 };
 
-const menu = [
-    { name: 'Home', href: '/' },
+// Parent dropdowns (order matters)
+const PARENTS = [
+  { name: 'Services', key: 'services' },
+  { name: 'Education', key: 'education' },
+  { name: 'Volunteering', key: 'volunteering' },
+  { name: 'Community', key: 'community' },
+  { name: 'Registration', key: 'registration' },
+] as const;
+
+// Top-level links on the left (Contact will be placed near Donate, not here)
+const TOP_LINKS = [
+  { name: 'Home', href: '/' },
   { name: 'About', href: '/about' },
-  {
-    name: 'Services',
-    submenu: [
-      { name: 'Nikah/Matrimony', href: '/services/nikah-matrimony' },
-      { name: 'Ruqyah', href: '/services/ruqyah' },
-      { name: 'Social Services', href: '/services/social' },
-      { name: 'Special Needs', href: '/services/special-needs' },
-      { name: 'Newcomer Support', href: '/services/newcomer' },
-      { name: 'Ask Imam', href: '/services/ask-imam' },
-      { name: 'Gym Facility', href: '/services/gym' },
-      { name: 'MPF Booking', href: '/services/mpf' },
-      { name: 'Halal Kitchen Info', href: '/services/halal' },
-    ],
-  },
-  {
-    name: 'Education',
-    submenu: [
-      { name: 'Q&A School / Weekend School', href: '/education/weekend-school' },
-      { name: 'School System (Classes)', href: '/education/classes' },
-      { name: 'Resource Library', href: '/education/library' },
-      { name: 'Revert Stories', href: '/education/revert-stories' },
-    ],
-  },
-  {
-    name: 'Volunteering',
-    submenu: [
-      { name: 'Volunteer Signup', href: '/volunteering/signup' },
-      { name: 'Track Hours', href: '/volunteering/hours' },
-      { name: 'Feed the Hungry', href: '/volunteering/feed' },
-      { name: 'Shelter Programs', href: '/volunteering/shelter' },
-      { name: 'Committees', href: '/volunteering/committees' },
-    ],
-  },
-  {
-    name: 'Community',
-    submenu: [
-      { name: 'Events', href: '/community/events' },
-      { name: 'Blog / Khutbah', href: '/community/blog' },
-      { name: 'Gallery', href: '/community/gallery' },
-      { name: 'Community Wall', href: '/community/wall' },
-      { name: 'Announcements', href: '/community/announcements' },
-      { name: 'Newsletter', href: '/community/newsletter' },
-      { name: 'FAQ', href: '/community/faq' },
-    ],
-  },
-  {
-    name: 'Registration',
-    submenu: [
-      { name: 'Membership', href: '/registration/membership' },
-      { name: 'School Enrollment', href: '/registration/school' },
-      { name: 'Gym Access', href: '/registration/gym' },
-      { name: 'MPF Access', href: '/registration/mpf' },
-      { name: 'Halal Kitchen Subscription', href: '/registration/kitchen' },
-      { name: 'Cemetery Burial Request', href: '/registration/cemetery' },
-    ],
-  },
-  { name: 'Contact', href: '/contact' },
 ];
+
+type SubItem = { name: string; href: string; order: number | null; parent_key: string };
 
 function classNames(...classes: string[]) {
   return classes.filter(Boolean).join(' ');
@@ -83,18 +37,18 @@ function classNames(...classes: string[]) {
 export default function NavBar() {
   const pathname = usePathname();
   const router = useRouter();
+
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const [dashboardRoute, setDashboardRoute] = useState('/');
   const [logoUrl, setLogoUrl] = useState('');
-  
+  const [submenus, setSubmenus] = useState<Record<string, SubItem[]>>({});
 
   useEffect(() => {
     const getSessionAndRole = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       setIsLoggedIn(!!session);
 
       if (session?.user) {
@@ -111,51 +65,75 @@ export default function NavBar() {
           .single();
 
         switch (roleNameData?.name) {
-          case 'super_admin':
-            setDashboardRoute('/super-admin');
-            break;
-          case 'admin':
-            setDashboardRoute('/admin');
-            break;
-          case 'volunteer':
-            setDashboardRoute('/volunteer');
-            break;
-          case 'teacher':
-            setDashboardRoute('/teacher');
-            break;
-          case 'student':
-            setDashboardRoute('/student');
-            break;
-          case 'member':
-            setDashboardRoute('/member');
-            break;
-          default:
-            setDashboardRoute('/user');
+          case 'super_admin': setDashboardRoute('/super-admin'); break;
+          case 'admin': setDashboardRoute('/admin'); break;
+          case 'volunteer': setDashboardRoute('/volunteer'); break;
+          case 'teacher': setDashboardRoute('/teacher'); break;
+          case 'student': setDashboardRoute('/student'); break;
+          case 'member': setDashboardRoute('/member'); break;
+          default: setDashboardRoute('/user');
         }
       }
     };
 
     const fetchLogo = async () => {
-    try {
-      const url = await s3ImageService.getImage('ICFC-Logo.png');
-      setLogoUrl(url);
-    } catch (error) {
-      console.error("Failed to load logo image:", error);
-    }
-  };
+      try {
+        const url = await s3ImageService.getImage('ICFC-Logo.png');
+        setLogoUrl(url);
+      } catch (error) {
+        console.error('Failed to load logo image:', error);
+      }
+    };
 
-  
+    const loadNavData = async () => {
+      const { data: subs, error } = await supabase
+        .from('navbar_submodules')
+        .select('parent_key,name,href,order')
+        .eq('enabled', true)
+        .order('parent_key', { ascending: true })
+        .order('order', { ascending: true })
+        .order('name', { ascending: true });
 
-  fetchLogo();
-    getSessionAndRole();
+      if (error) {
+        console.error('Failed to load submenus:', error.message);
+        setSubmenus({});
+        return;
+      }
+
+      const grouped: Record<string, SubItem[]> = {};
+      (subs || []).forEach((s: any) => {
+        (grouped[s.parent_key] ||= []).push({
+          parent_key: s.parent_key,
+          name: s.name,
+          href: s.href,
+          order: s.order,
+        });
+      });
+      setSubmenus(grouped);
+    };
+
     fetchLogo();
+    getSessionAndRole();
+    loadNavData();
 
+    // Auth listener
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsLoggedIn(!!session);
     });
 
+    // Live updates on any submodule change
+    const ch = supabase
+      .channel('navbar-submodules')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'navbar_submodules' },
+        () => loadNavData()
+      )
+      .subscribe();
+
     return () => {
       listener.subscription.unsubscribe();
+      supabase.removeChannel(ch);
     };
   }, []);
 
@@ -165,9 +143,7 @@ export default function NavBar() {
   };
 
   const handleMouseLeave = () => {
-    timeoutRef.current = setTimeout(() => {
-      setActiveDropdown(null);
-    }, 200);
+    timeoutRef.current = setTimeout(() => setActiveDropdown(null), 200);
   };
 
   const handleLogout = async () => {
@@ -189,36 +165,55 @@ export default function NavBar() {
           <>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 font-body">
               <div className="flex justify-between h-16 items-center">
-                {/* Logo with Home Link on the Left */}
-                  <Link href="/" className="flex items-center space-x-2">
-                    {logoUrl && (
-                      <img
-                        src={logoUrl}
-                        alt="ICFC Logo"
-                        className="h-12 w-auto object-contain"
-                      />
-                    )}
-                  </Link>
+                {/* Logo */}
+                <Link href="/" className="flex items-center space-x-2">
+                  {logoUrl && (
+                    <img
+                      src={logoUrl}
+                      alt="ICFC Logo"
+                      className="h-12 w-auto object-contain"
+                    />
+                  )}
+                </Link>
 
-                {/* Desktop Navigation */}
+                {/* Desktop nav */}
                 <div className="hidden md:flex space-x-6 items-center">
-                  {menu.map((item) =>
-                    item.submenu ? (
+                  {/* Left top-level links */}
+                  {TOP_LINKS.map((item) => (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      className={classNames(
+                        pathname === item.href
+                          ? 'text-primary font-semibold'
+                          : 'text-gray-700 hover:text-primary',
+                        'font-medium'
+                      )}
+                    >
+                      {item.name}
+                    </Link>
+                  ))}
+
+                  {/* Dropdown parents from DB */}
+                  {PARENTS.map((parent) => {
+                    const items = submenus[parent.key] || [];
+                    if (!items.length) return null; // hide parent if no enabled children
+                    return (
                       <div
-                        key={item.name}
+                        key={parent.key}
                         className="relative"
-                        onMouseEnter={() => handleMouseEnter(item.name)}
+                        onMouseEnter={() => handleMouseEnter(parent.name)}
                         onMouseLeave={handleMouseLeave}
                       >
                         <button className="inline-flex items-center text-gray-700 hover:text-primary font-medium">
-                          {item.name}
+                          {parent.name}
                           <ChevronDownIcon className="ml-1 h-4 w-4" />
                         </button>
-                        {activeDropdown === item.name && (
+                        {activeDropdown === parent.name && (
                           <div className="absolute z-20 mt-2 w-56 origin-top-left bg-white border border-gray-200 rounded-md shadow-lg">
-                            {item.submenu.map((sub) => (
+                            {items.map((sub) => (
                               <Link
-                                key={sub.name}
+                                key={sub.href}
                                 href={sub.href}
                                 className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                               >
@@ -228,23 +223,23 @@ export default function NavBar() {
                           </div>
                         )}
                       </div>
-                    ) : (
-                      <Link
-                        key={item.name}
-                        href={item.href}
-                        className={classNames(
-                          pathname === item.href
-                            ? 'text-primary font-semibold'
-                            : 'text-gray-700 hover:text-primary',
-                          'font-medium'
-                        )}
-                      >
-                        {item.name}
-                      </Link>
-                    )
-                  )}
+                    );
+                  })}
 
-                  {/* Donate + Login/Profile */}
+                  {/* Contact placed right before Donate */}
+                  <Link
+                    href="/contact"
+                    className={classNames(
+                      pathname === '/contact'
+                        ? 'text-primary font-semibold'
+                        : 'text-gray-700 hover:text-primary',
+                      'font-medium'
+                    )}
+                  >
+                    Contact
+                  </Link>
+
+                  {/* Donate button */}
                   <Link
                     href="/donate"
                     className="bg-secondary hover:bg-yellow-500 text-black px-4 py-1 rounded font-semibold"
@@ -252,6 +247,7 @@ export default function NavBar() {
                     Donate
                   </Link>
 
+                  {/* Login/Profile */}
                   {!isLoggedIn ? (
                     <Link
                       href="/login"
@@ -319,7 +315,7 @@ export default function NavBar() {
                   )}
                 </div>
 
-                {/* Mobile menu toggle */}
+                {/* Mobile toggle */}
                 <div className="flex md:hidden">
                   <Disclosure.Button className="text-primary">
                     {open ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
@@ -328,15 +324,29 @@ export default function NavBar() {
               </div>
             </div>
 
-            {/* Mobile Menu Panel */}
+            {/* Mobile menu panel */}
             <Disclosure.Panel className="md:hidden px-4 pb-4 font-body">
-              {menu.map((item) =>
-                item.submenu ? (
-                  <div key={item.name}>
-                    <div className="font-semibold text-gray-800">{item.name}</div>
-                    {item.submenu.map((sub) => (
+              {/* Home & About first */}
+              {TOP_LINKS.map((item) => (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className="block text-gray-800 hover:text-primary font-medium"
+                >
+                  {item.name}
+                </Link>
+              ))}
+
+              {/* Dropdown parents */}
+              {PARENTS.map((parent) => {
+                const items = submenus[parent.key] || [];
+                if (!items.length) return null;
+                return (
+                  <div key={parent.key} className="mt-2">
+                    <div className="font-semibold text-gray-800">{parent.name}</div>
+                    {items.map((sub) => (
                       <Link
-                        key={sub.name}
+                        key={sub.href}
                         href={sub.href}
                         className="block pl-4 text-gray-600 hover:text-primary text-sm"
                       >
@@ -344,17 +354,23 @@ export default function NavBar() {
                       </Link>
                     ))}
                   </div>
-                ) : (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className="block text-gray-800 hover:text-primary font-medium"
-                  >
-                    {item.name}
-                  </Link>
-                )
-              )}
+                );
+              })}
 
+              {/* Contact right before Donate */}
+              <Link
+                href="/contact"
+                className={classNames(
+                  pathname === '/contact'
+                    ? 'text-primary font-semibold'
+                    : 'text-gray-700 hover:text-primary',
+                  'block font-medium mt-2'
+                )}
+              >
+                Contact
+              </Link>
+
+              {/* Donate */}
               <Link
                 href="/donate"
                 className="block bg-secondary text-black px-4 py-1 rounded font-semibold mt-2"
@@ -362,6 +378,7 @@ export default function NavBar() {
                 Donate
               </Link>
 
+              {/* Auth buttons */}
               {!isLoggedIn ? (
                 <Link
                   href="/login"
