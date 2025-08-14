@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import Link from "next/link";
+import AdminMessagesButton from '@/components/admin/AdminMessagesButton';
+import PhotoManagerButton from '@/components/admin/PhotoManagerButton';
 
 export default function SuperAdminDashboard() {
   const [loading, setLoading] = useState(true);
@@ -46,14 +48,20 @@ export default function SuperAdminDashboard() {
       <h1 className="text-2xl font-bold">Welcome, Super Admin</h1>
       <p>This is your dashboard.</p>
 
-      <div className="mt-6">
-  <Link
-    href="/super-admin/submenus"
-    className="inline-block bg-[#006400] text-white px-4 py-2 rounded hover:bg-green-800"
-  >
-    Manage Nav Sub‑menus
-  </Link>
-</div>
+       <div className="mt-6">
+          <Link
+            href="/super-admin/submenus"
+            className="inline-block bg-[#006400] text-white px-4 py-2 rounded hover:bg-green-800"
+          >
+            Manage Nav Sub‑menus
+          </Link>
+       </div>
+       <div className="mt-4">
+        <AdminMessagesButton />
+       </div>
+       <div className="mt-6">
+          <PhotoManagerButton />
+       </div>
     </div>
 
   );

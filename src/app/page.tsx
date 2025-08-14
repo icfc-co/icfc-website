@@ -24,7 +24,7 @@ export default function HomePage() {
   return (
     <>
       {/* Hero Banner */}
-      <section className="relative text-center h-[90vh] overflow-hidden">
+      <section className="relative text-center h-[100vh] overflow-hidden">
         {/* Background image with parallax effect */}
         <div
           className="absolute inset-0 bg-no-repeat bg-cover bg-center will-change-transform"
@@ -34,14 +34,17 @@ export default function HomePage() {
           }}
         >
           {/* Dark overlay */}
-          <div className="absolute inset-0 bg-black opacity-60 z-10" />
+          <div className="absolute inset-0 bg-black opacity-70 z-10" />
         </div>
 
         {/* Content */}
-        <div className="relative z-20 flex flex-col justify-center items-center h-full px-4 text-white">
+        <div className="relative z-20 flex flex-col justify-center items-center h-full px-5 text-white">
           <h1 className="text-5xl md:text-6xl font-title text-secondary drop-shadow-md mb-4">
             Welcome to ICFC
           </h1>
+          <h3 className="text-5xl md:text-2xl font-heading text-secondary drop-shadow-md mb-4">
+            Islamic Center of Fort Collins
+          </h3>
           <p className="text-lg md:text-xl font-heading mb-8">
             Serving the Muslim community of Fort Collins
           </p>

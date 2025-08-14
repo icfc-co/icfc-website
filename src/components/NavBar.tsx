@@ -228,16 +228,17 @@ export default function NavBar() {
 
                   {/* Contact placed right before Donate */}
                   <Link
-                    href="/contact"
-                    className={classNames(
-                      pathname === '/contact'
-                        ? 'text-primary font-semibold'
-                        : 'text-gray-700 hover:text-primary',
-                      'font-medium'
-                    )}
-                  >
-                    Contact
-                  </Link>
+                      href="/modules/contact"
+                      prefetch={false}
+                      className={classNames(
+                        pathname?.startsWith('/modules/contact')
+                          ? 'text-primary font-semibold'
+                          : 'text-gray-700 hover:text-primary',
+                        'block font-medium mt-2'
+                      )}
+                    >
+                      Contact
+                    </Link>
 
                   {/* Donate button */}
                   <Link
@@ -359,17 +360,11 @@ export default function NavBar() {
 
               {/* Contact right before Donate */}
               <Link
-                href="/contact"
-                className={classNames(
-                  pathname === '/contact'
-                    ? 'text-primary font-semibold'
-                    : 'text-gray-700 hover:text-primary',
-                  'block font-medium mt-2'
-                )}
-              >
-                Contact
-              </Link>
-
+                  href="/modules/contact"
+                 className="block pl-4 text-gray-600 hover:text-primary text-sm"
+                >
+                  Contact
+                </Link>
               {/* Donate */}
               <Link
                 href="https://us.mohid.co/co/fortcollins/icfc/masjid/online/donation"
