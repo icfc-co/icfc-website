@@ -89,8 +89,8 @@ export default function ContactPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className={`${HEADING_FONT} block text-sm text-gray-700 mb-1`}>Phone</label>
-                    <input name="phone" className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#006400]/30" placeholder="(optional)" />
+                    <label className={`${HEADING_FONT} block text-sm text-gray-700 mb-1`}>Phone *</label>
+                    <input type="tel" pattern="^\+?(\d{1,3})?[-\s]?\(?(\d{3})\)?[-\s]?(\d[-.\s]?){6,9}\d$" name="phone" required className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#006400]/30" placeholder="+1 234 567 8900" />
                   </div>
                   <div>
                     <label className={`${HEADING_FONT} block text-sm text-gray-700 mb-1`}>Reason *</label>
