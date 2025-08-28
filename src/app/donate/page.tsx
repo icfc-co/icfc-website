@@ -1,124 +1,162 @@
 ﻿'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 type Method = 'stripe' | 'zelle' | 'bank';
 type Recurrence = 'one_time' | 'monthly';
 
-const PRESETS = [25, 50, 100, 250, 500];
+const PRESETS = [50, 100, 250, 500, 1000];
 const FUNDS = [
-  { key: 'general', label: 'Masjid Expenses (General)' },
-  { key: 'zakat', label: 'Zakat' },
-  { key: 'cemetery', label: 'Cemetery' },
-  { key: 'imam_salary', label: 'Imam/Alim Salary' },
-  { key: 'dues', label: 'Dues' },
+  { key: 'general',      label: 'Masjid Expenses (General)' },
+  { key: 'zakat',        label: 'Zakat' },
+  { key: 'cemetery',     label: 'Cemetery' },
+  { key: 'imam_salary',  label: 'Imam/Alim Salary' },
+  { key: 'membership',         label: 'Membership' },
+  { key: 'other',         label: 'Other' },
 ];
 
+// Map fund → Zelle recipient email (with NEXT_PUBLIC fallbacks)
 function zelleEmailForFund(fund: string) {
   switch (fund) {
-    case 'zakat':        return process.env.NEXT_PUBLIC_ZELLE_EMAIL_ZAKAT || 'zakat@icfc.org';
-    case 'cemetery':     return process.env.NEXT_PUBLIC_ZELLE_EMAIL_CEMETERY || 'cemetery@icfc.org';
+    case 'zakat':        return process.env.NEXT_PUBLIC_ZELLE_EMAIL_ZAKAT       || 'zakat@icfc.org';
+    case 'cemetery':     return process.env.NEXT_PUBLIC_ZELLE_EMAIL_CEMETERY    || 'cemetery@icfc.org';
     case 'imam_salary':  return process.env.NEXT_PUBLIC_ZELLE_EMAIL_IMAM_SALARY || 'imamsalary@icfc.org';
-    case 'dues':         return process.env.NEXT_PUBLIC_ZELLE_EMAIL_DUES || process.env.NEXT_PUBLIC_ZELLE_EMAIL_GENERAL || 'info@icfc.org';
+    case 'dues':         return process.env.NEXT_PUBLIC_ZELLE_EMAIL_DUES        || process.env.NEXT_PUBLIC_ZELLE_EMAIL_GENERAL || 'info@icfc.org';
     case 'general':
-    default:             return process.env.NEXT_PUBLIC_ZELLE_EMAIL_GENERAL || 'info@icfc.org';
+    default:             return process.env.NEXT_PUBLIC_ZELLE_EMAIL_GENERAL     || 'info@icfc.org';
   }
 }
 
+// Safe JSON parse for fetch responses (avoids “Unexpected end of JSON input”)
+async function safeJson(res: Response) {
+  const text = await res.text();
+  try { return text ? JSON.parse(text) : null; }
+  catch { return null; }
+}
+
 export default function DonatePage() {
+  const router = useRouter();
+
   const [method, setMethod] = useState<Method>('stripe');
   const [amount, setAmount] = useState<number | ''>('');
   const [fund, setFund] = useState(FUNDS[0].key);
   const [recurrence, setRecurrence] = useState<Recurrence>('one_time');
-  const [donorName, setDonorName] = useState('');
+
+  const [donorName, setDonorName]   = useState('');
   const [donorEmail, setDonorEmail] = useState('');
-  const [note, setNote] = useState('');
+  const [note, setNote]             = useState('');
 
-  // Zelle
-  const [transferDateZ, setTransferDateZ] = useState('');
-  const [proofUrlZ, setProofUrlZ] = useState('');
-  const [last4, setLast4] = useState(''); // REQUIRED
+  // Zelle fields
+  const [transferDateZ, setTransferDateZ] = useState(''); // YYYY-MM-DD
+  const [proofUrlZ, setProofUrlZ]         = useState('');
+  const [last4, setLast4]                 = useState('');  // REQUIRED
 
-  // Bank (ACH)
-  const [transferDateB, setTransferDateB] = useState('');
-  const [proofUrlB, setProofUrlB] = useState('');
+  // Bank fields
+  const [transferDateB, setTransferDateB] = useState(''); // YYYY-MM-DD
+  const [proofUrlB, setProofUrlB]         = useState('');
   const [transactionId, setTransactionId] = useState(''); // REQUIRED
 
   const [submitting, setSubmitting] = useState(false);
-  const amountCents = typeof amount === 'number' ? Math.round(amount * 100) : 0;
 
+  const amountCents = typeof amount === 'number' ? Math.round(amount * 100) : 0;
   const zelleEmail = useMemo(() => zelleEmailForFund(fund), [fund]);
+
   const bankRouting = process.env.NEXT_PUBLIC_BANK_ROUTING;
   const bankAccount = process.env.NEXT_PUBLIC_BANK_ACCOUNT;
 
   const primaryDisabled =
     submitting ||
     amountCents < 100 ||
-    (method === 'zelle' && (last4.trim().length < 4)) ||
-    (method === 'bank' && (transactionId.trim().length < 4));
+    (method === 'zelle' && last4.trim().length < 4) ||
+    (method === 'bank'  && transactionId.trim().length < 4);
 
+  /** Stripe */
   async function startStripe() {
+    if (amountCents < 100) return alert('Minimum is $1.00');
     setSubmitting(true);
     try {
-      const res = await fetch('/api/stripe/checkout', {
+      const res  = await fetch('/api/stripe/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amountCents, fund, recurrence, donorEmail, donorName, note }),
       });
-      const json = await res.json();
-      if (res.ok && json.url) window.location.href = json.url as string;
-      else alert(json.error || 'Failed to start Stripe checkout.');
+      const json = await safeJson(res);
+      if (res.ok && json?.url) {
+        window.location.href = json.url as string;
+      } else {
+        alert(json?.error || 'Failed to start Stripe checkout.');
+      }
     } catch (e: any) {
-      alert(e?.message || 'Network error');
+      alert(e?.message || 'Network error.');
     } finally {
       setSubmitting(false);
     }
   }
 
+  /** Zelle */
   async function submitZelle() {
+    if (amountCents < 100) return alert('Please enter a valid amount.');
+    if (last4.trim().length < 4) return alert('Please enter Zelle Ref Last 4.');
+
     setSubmitting(true);
     try {
-      const res = await fetch('/api/zelle/confirm', {
+      const res  = await fetch('/api/zelle/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          donorName, donorEmail, amountCents, fund, note,
-          transferDate: transferDateZ || null, proofUrl: proofUrlZ || null, last4,
+          donorName,
+          donorEmail,
+          amountCents,
+          fund,
+          note,
+          transferDate: transferDateZ || null,
+          proofUrl: proofUrlZ || null,
+          last4: last4 || null,
         }),
       });
-      const json = await res.json();
-      if (res.ok && json.ok) {
-        alert("Thanks! We've recorded your Zelle confirmation.");
-        setTransferDateZ(''); setProofUrlZ(''); setLast4('');
-      } else {
-        alert(json.error || 'Failed to submit confirmation.');
-      }
+      const json = await safeJson(res);
+      if (!res.ok) return alert(json?.error || 'Error submitting confirmation.');
+
+      // Redirect to thank-you page (no alerts)
+      router.replace(`/donate/thanks?m=zelle&a=${amountCents}&f=${encodeURIComponent(fund)}`);
     } catch (e: any) {
-      alert(e?.message || 'Network error');
-    } finally { setSubmitting(false); }
+      alert(e?.message || 'Network error.');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
+  /** Bank (ACH) */
   async function submitBank() {
+    if (amountCents < 100) return alert('Please enter a valid amount.');
+    if (!transactionId.trim()) return alert('Please enter the bank transaction ID.');
+
     setSubmitting(true);
     try {
-      const res = await fetch('/api/bank/confirm', {
+      const res  = await fetch('/api/bank/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          donorName, donorEmail, amountCents, fund, note,
-          transferDate: transferDateB || null, proofUrl: proofUrlB || null, transactionId,
+          donorName,
+          donorEmail,
+          amountCents,
+          fund,
+          note,
+          transferDate: transferDateB || null,
+          proofUrl: proofUrlB || null,
+          transactionId,
         }),
       });
-      const json = await res.json();
-      if (res.ok && json.ok) {
-        alert("Thanks! We've recorded your bank transfer confirmation.");
-        setTransferDateB(''); setProofUrlB(''); setTransactionId('');
-      } else {
-        alert(json.error || 'Failed to submit confirmation.');
-      }
+      const json = await safeJson(res);
+      if (!res.ok) return alert(json?.error || 'Error submitting confirmation.');
+
+      router.replace(`/donate/thanks?m=bank&a=${amountCents}&f=${encodeURIComponent(fund)}`);
     } catch (e: any) {
-      alert(e?.message || 'Network error');
-    } finally { setSubmitting(false); }
+      alert(e?.message || 'Network error.');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -136,7 +174,9 @@ export default function DonatePage() {
               className={`rounded-2xl py-2 font-medium shadow transition
                 ${method===m? 'bg-[#006400]' : 'bg-white/10 hover:bg-white/20'}`}
               aria-pressed={method===m}
-            >{m.toUpperCase()}</button>
+            >
+              {m.toUpperCase()}
+            </button>
           ))}
         </div>
 
@@ -168,7 +208,7 @@ export default function DonatePage() {
           ))}
         </div>
 
-        {/* Recurrence for Stripe */}
+        {/* Recurrence (Stripe only) */}
         {method==='stripe' && (
           <div className="mb-6 flex gap-2">
             {(['one_time','monthly'] as Recurrence[]).map(r => (
@@ -230,10 +270,15 @@ export default function DonatePage() {
           onClick={() => method==='stripe' ? startStripe() : method==='zelle' ? submitZelle() : submitBank()}
           className="w-full rounded-2xl py-3 font-semibold shadow bg-[#FFD700] text-black hover:opacity-90 disabled:opacity-40 transition"
         >
-          {submitting ? 'Processing...' : method==='stripe' ? 'Donate with Stripe' : method==='zelle' ? 'Submit Zelle Confirmation' : 'Submit Bank Confirmation'}
+          {submitting ? 'Processing...' :
+            method==='stripe' ? 'Donate with Stripe' :
+            method==='zelle'  ? 'Submit Zelle Confirmation' :
+                                'Submit Bank Confirmation'}
         </button>
 
-        <p className="mt-4 text-xs text-white/70">ICFC is a 501(c)(3). Donations may be tax-deductible. Please consult your tax advisor.</p>
+        <p className="mt-4 text-xs text-white/70">
+          ICFC is a 501(c)(3). Donations may be tax-deductible. Please consult your tax advisor.
+        </p>
       </section>
     </main>
   );

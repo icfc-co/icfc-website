@@ -1,74 +1,283 @@
-// src/app/api/stripe/webhook/route.ts
-import { NextRequest, NextResponse } from "next/server";
+// app/api/stripe/webhook/route.ts
+import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function POST(req: NextRequest) {
-  const secret = process.env.STRIPE_SECRET_KEY;
-  const whsec  = process.env.STRIPE_WEBHOOK_SECRET;
-  const supaUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supaSrv = process.env.SUPABASE_SERVICE_ROLE;
+function missingEnv(...keys: string[]) {
+  return keys.filter((k) => !process.env[k]);
+}
 
-  if (!secret || !whsec || !supaUrl || !supaSrv) {
-    console.error("Missing env", { hasSK: !!secret, hasWH: !!whsec, hasURL: !!supaUrl, hasSRV: !!supaSrv });
-    return new NextResponse("Server misconfigured", { status: 500 });
+export async function POST(req: Request) {
+  const miss = missingEnv(
+    "STRIPE_SECRET_KEY",
+    "STRIPE_WEBHOOK_SECRET",
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY"
+  );
+  if (miss.length) {
+    console.error("WEBHOOK ENV MISSING:", miss);
+    return NextResponse.json({ error: `Missing env: ${miss.join(", ")}` }, { status: 500 });
   }
 
-  const stripe = new Stripe(secret, { apiVersion: "2024-06-20" });
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-06-20" });
 
-  // RAW body is required for Stripe signature verification
-  const body = await req.text();
-  const sig = req.headers.get("stripe-signature") || "";
+  // Explicitly pin to the public schema so there is no ambiguity
+  const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    db: { schema: "public" },
+  });
+
+  const log = async (note: string, type: string, payload: any, error?: any) => {
+    try {
+      await admin.from("webhook_logs").insert({
+        event_type: type,
+        note,
+        payload,
+        error: error ? String(error) : null,
+      });
+    } catch {}
+  };
+  const dbg = async (note: string, payload: any) => {
+    console.log("[WEBHOOK]", note, payload);
+    await log(note, "debug", payload);
+  };
+
+  // 1) Verify signature
+  const raw = await req.text();
+  const sig = req.headers.get("stripe-signature");
+  if (!sig) {
+    await log("missing_stripe_signature", "webhook", { len: raw.length });
+    return NextResponse.json({ error: "Missing stripe-signature" }, { status: 400 });
+  }
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(body, sig, whsec);
+    event = stripe.webhooks.constructEvent(raw, sig, process.env.STRIPE_WEBHOOK_SECRET!);
   } catch (err: any) {
-    console.error("Bad signature:", err.message);
-    return new NextResponse("Bad signature", { status: 400 });
+    await log("signature_failed", "webhook", {}, err?.message);
+    return NextResponse.json({ error: `Signature verification failed: ${err.message}` }, { status: 400 });
   }
 
-  console.log("WEBHOOK:", event.type);
+  await dbg("received_event", {
+    type: event.type,
+    id: event.id,
+    project: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  });
 
-  const supabase = createClient(supaUrl, supaSrv);
+  // helpers
+  const iso = (unix?: number | null) => (unix ? new Date(unix * 1000).toISOString() : null);
+
+  async function directUpsert(row: {
+    user_id: string;
+    status: string;
+    plan?: string | null;
+    period?: string | null;
+    amount_cents?: number | null;
+    stripe_customer_id?: string | null;
+    stripe_subscription_id?: string | null;
+    plan_type?: string | null;
+    start_date?: string | null;
+    end_date?: string | null;
+  }) {
+    const { error } = await admin
+      .from("memberships")
+      .upsert(
+        {
+          user_id: row.user_id,
+          status: row.status,
+          plan: row.plan ?? null,
+          period: row.period ?? null,
+          amount_cents: row.amount_cents ?? null,
+          stripe_customer_id: row.stripe_customer_id ?? null,
+          stripe_subscription_id: row.stripe_subscription_id ?? null,
+          plan_type: row.plan_type ?? null,
+          start_date: row.start_date ?? null,
+          end_date: row.end_date ?? null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" }
+      );
+    if (error) throw error;
+  }
 
   try {
-    if (event.type === "checkout.session.completed") {
-      const session = event.data.object as Stripe.Checkout.Session;
+    switch (event.type) {
+      case "checkout.session.completed": {
+        const s = event.data.object as Stripe.Checkout.Session;
+        await dbg("checkout_session", {
+          mode: s.mode,
+          metadata: s.metadata,
+          subscription: s.subscription,
+          customer: s.customer,
+        });
 
-      const meta = session.metadata || {};
-      const amountCents =
-        (session.amount_total ?? session.amount_subtotal ?? 0);
+        const user_id = s.metadata?.user_id as string | undefined;
+        if (!user_id) {
+          await log("missing_user_id", event.type, { metadata: s.metadata });
+          return NextResponse.json({ error: "metadata.user_id missing" }, { status: 400 });
+        }
 
-      const { error } = await supabase.from("donations").insert({
-        user_id: meta.userId || null,
-        donor_name: meta.donorName || null,
-        donor_email: session.customer_details?.email || null,
-        method: "stripe",
-        status: "succeeded",
-        amount_cents: amountCents,
-        currency: session.currency || "usd",
-        fund: (meta.fund as string) || "general",
-        recurrence: (meta.recurrence as "one_time" | "monthly") || "one_time",
-        note: meta.note || null,
-        external_ref: session.id,
-      });
+        const isSub = s.mode === "subscription" || s.metadata?.membership_type === "subscription";
+        const customerId = (s.customer as string) ?? null;
+        const subId = isSub && typeof s.subscription === "string" ? s.subscription : null;
 
-      if (error) {
-        console.error("Supabase insert error:", error);
-        return NextResponse.json({ ok: false }, { status: 500 });
+        // dates
+        let startISO: string | null = null;
+        let endISO: string | null = null;
+        const planType = (isSub ? "subscription" : "one_time") as "subscription" | "one_time";
+
+        if (isSub && subId) {
+          const sub = await stripe.subscriptions.retrieve(subId);
+          startISO = iso(sub.current_period_start);
+          endISO = iso(sub.current_period_end);
+        } else {
+          const now = new Date();
+          startISO = now.toISOString();
+          endISO = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString();
+        }
+
+        // 2) WRITE the membership
+        try {
+          await directUpsert({
+            user_id,
+            status: "active",
+            plan: s.metadata?.plan ?? "standard",
+            period: s.metadata?.period ?? "yearly",
+            amount_cents: s.amount_total ?? 0,
+            stripe_customer_id: customerId,
+            stripe_subscription_id: subId,
+            plan_type: planType,
+            start_date: startISO,
+            end_date: endISO,
+          });
+          await dbg("direct_upsert_ok", { user_id });
+        } catch (e: any) {
+          await log("direct_upsert_failed", event.type, { user_id }, e?.message);
+          throw e;
+        }
+
+        // 3) READ BACK what we just wrote (and log it)
+        const { data: mRow, error: selErr } = await admin
+          .from("memberships")
+          .select("user_id,status,plan,period,plan_type,start_date,end_date,updated_at")
+          .eq("user_id", user_id)
+          .maybeSingle();
+        await dbg("verify_membership_row", { mRow, selErr: selErr?.message });
+
+        // 4) Flip role -> member
+        const { error: roleErr } = await admin.rpc("replace_role_with_member", { p_user_id: user_id });
+        if (roleErr) await log("replace_role_with_member_failed", event.type, { user_id }, roleErr);
+
+        // 5) READ BACK role and log it
+        const { data: roleRow, error: roleSelErr } = await admin
+          .from("user_roles")
+          .select("role_id, roles(name)")
+          .eq("user_id", user_id)
+          .limit(1)
+          .single();
+        await dbg("verify_user_role_row", { roleRow, roleSelErr: roleSelErr?.message });
+
+        break;
       }
+
+      case "customer.subscription.updated":
+      case "customer.subscription.deleted": {
+        const sub = event.data.object as Stripe.Subscription;
+        const customerId = sub.customer as string;
+        const status = sub.status;
+
+        const { data: m, error } = await admin
+          .from("memberships")
+          .select("user_id")
+          .eq("stripe_customer_id", customerId)
+          .maybeSingle();
+        if (error) throw error;
+
+        if (!m?.user_id) {
+          await log("membership_not_found_for_customer", event.type, { customerId });
+          break;
+        }
+
+        const item = sub.items.data[0];
+        const startISO = iso(sub.current_period_start);
+        const endISO = iso(sub.current_period_end);
+
+        // Update membership
+        try {
+          await directUpsert({
+            user_id: m.user_id,
+            status,
+            plan: item?.price?.nickname ?? "standard",
+            period: item?.price?.recurring?.interval ?? "year",
+            amount_cents: item?.price?.unit_amount ?? 0,
+            stripe_customer_id: customerId,
+            stripe_subscription_id: sub.id,
+            plan_type: "subscription",
+            start_date: startISO,
+            end_date: endISO,
+          });
+          await dbg("direct_upsert_ok_sub", { user_id: m.user_id });
+        } catch (e: any) {
+          await log("direct_upsert_failed_sub", event.type, { user_id: m.user_id }, e?.message);
+          throw e;
+        }
+
+        // Read back membership
+        const { data: mRow, error: selErr } = await admin
+          .from("memberships")
+          .select("user_id,status,plan,period,plan_type,start_date,end_date,updated_at")
+          .eq("user_id", m.user_id)
+          .maybeSingle();
+        await dbg("verify_membership_row_sub", { mRow, selErr: selErr?.message });
+
+        // Flip role based on status
+        if (status === "canceled" || status === "unpaid" || status === "incomplete_expired") {
+          const { error: dErr } = await admin.rpc("replace_role_with_user", { p_user_id: m.user_id });
+          if (dErr) await log("replace_role_with_user_failed", event.type, { user_id: m.user_id }, dErr);
+        } else {
+          const { error: pErr } = await admin.rpc("replace_role_with_member", { p_user_id: m.user_id });
+          if (pErr) await log("replace_role_with_member_failed", event.type, { user_id: m.user_id }, pErr);
+        }
+
+        // Read back role
+        const { data: roleRow, error: roleSelErr } = await admin
+          .from("user_roles")
+          .select("role_id, roles(name)")
+          .eq("user_id", m.user_id)
+          .limit(1)
+          .single();
+        await dbg("verify_user_role_row_sub", { roleRow, roleSelErr: roleSelErr?.message });
+
+        break;
+      }
+
+      default:
+        await log("ignored_event", event.type, { id: event.id });
+        break;
     }
 
-    // (Optional) handle subscription renewals:
-    // if (event.type === "invoice.paid") { ... }
-
     return NextResponse.json({ received: true });
-  } catch (e) {
-    console.error("Webhook handler error:", e);
-    return new NextResponse("Webhook error", { status: 500 });
+  } catch (e: any) {
+    await log("handler_failed", event.type, {}, e?.message);
+    return NextResponse.json({ error: e?.message || "Webhook error" }, { status: 500 });
   }
+}
+
+/** DEV ping — confirms we’re writing to the same project you’re viewing. */
+export async function GET() {
+  const miss = missingEnv("NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY");
+  if (miss.length) return NextResponse.json({ ok: false, error: `Missing env: ${miss.join(", ")}` }, { status: 500 });
+
+  const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    db: { schema: "public" },
+  });
+  const { error } = await admin.from("webhook_logs").insert({
+    event_type: "manual-ping",
+    note: "ping ok",
+    payload: { project: process.env.NEXT_PUBLIC_SUPABASE_URL },
+  });
+  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
 }

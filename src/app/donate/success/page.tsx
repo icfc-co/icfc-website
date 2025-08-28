@@ -1,10 +1,9 @@
+'use client';
+import { useSearchParams } from 'next/navigation';
 
-export default function SuccessPage({
-  searchParams,
-}: {
-  searchParams: { session_id?: string };
-}) {
-  const sid = searchParams?.session_id;
+export default function SuccessPage() {
+  const sp = useSearchParams();
+  const sid = sp.get('session_id');
   return (
     <main className="min-h-screen bg-[#0f2027] text-white flex items-center justify-center px-4">
       <div className="max-w-xl text-center">

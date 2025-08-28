@@ -62,6 +62,19 @@ export default function SuperAdminDashboard() {
        <div className="mt-6">
           <PhotoManagerButton />
        </div>
+       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <a
+            href="/admin/donations"
+            className="rounded-2xl border bg-white p-6 shadow hover:shadow-md transition"
+          >
+            <div className="text-xl font-medium mb-1">Donations</div>
+            <p className="text-slate-600 text-sm">
+              Review Stripe, Zelle, and Bank entries, verify pending ones, and export CSV.
+            </p>
+          </a>
+
+          {/* Add more cards here when ready */}
+        </div>
     </div>
 
   );
