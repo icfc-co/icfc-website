@@ -105,82 +105,157 @@ export async function POST(req: Request) {
   try {
     switch (event.type) {
       case "checkout.session.completed": {
-        const s = event.data.object as Stripe.Checkout.Session;
-        await dbg("checkout_session", {
-          mode: s.mode,
-          metadata: s.metadata,
-          subscription: s.subscription,
-          customer: s.customer,
-        });
+  const s = event.data.object as Stripe.Checkout.Session;
+  await dbg("checkout_session", {
+    mode: s.mode,
+    payment_status: s.payment_status,
+    metadata: s.metadata,
+    subscription: s.subscription,
+    customer: s.customer,
+    id: s.id,
+  });
 
-        const user_id = s.metadata?.user_id as string | undefined;
-        if (!user_id) {
-          await log("missing_user_id", event.type, { metadata: s.metadata });
-          return NextResponse.json({ error: "metadata.user_id missing" }, { status: 400 });
-        }
+  // ---- Read common values ----
+  const meta = (s.metadata ?? {}) as Record<string, string | undefined>;
+  const fund = (meta.fund ?? "membership").toLowerCase();
+  const isMembership = fund === "membership"; // keep your membership flow intact
 
-        const isSub = s.mode === "subscription" || s.metadata?.membership_type === "subscription";
-        const customerId = (s.customer as string) ?? null;
-        const subId = isSub && typeof s.subscription === "string" ? s.subscription : null;
+  // Accept either user_id or userId (donations can be anonymous)
+  const user_id =
+    (meta.user_id as string | undefined) ||
+    (meta.userId as string | undefined) ||
+    undefined;
 
-        // dates
-        let startISO: string | null = null;
-        let endISO: string | null = null;
-        const planType = (isSub ? "subscription" : "one_time") as "subscription" | "one_time";
+  const donorName =
+    (meta.donorName as string | undefined) ||
+    s.customer_details?.name ||
+    null;
 
-        if (isSub && subId) {
-          const sub = await stripe.subscriptions.retrieve(subId);
-          startISO = iso(sub.current_period_start);
-          endISO = iso(sub.current_period_end);
-        } else {
-          const now = new Date();
-          startISO = now.toISOString();
-          endISO = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString();
-        }
+  const donorEmail =
+    (meta.donorEmail as string | undefined) ||
+    s.customer_details?.email ||
+    null;
 
-        // 2) WRITE the membership
-        try {
-          await directUpsert({
-            user_id,
-            status: "active",
-            plan: s.metadata?.plan ?? "standard",
-            period: s.metadata?.period ?? "yearly",
-            amount_cents: s.amount_total ?? 0,
-            stripe_customer_id: customerId,
-            stripe_subscription_id: subId,
-            plan_type: planType,
-            start_date: startISO,
-            end_date: endISO,
-          });
-          await dbg("direct_upsert_ok", { user_id });
-        } catch (e: any) {
-          await log("direct_upsert_failed", event.type, { user_id }, e?.message);
-          throw e;
-        }
+  const note = (meta.note as string | undefined) ?? null;
+  const recurrence = (meta.recurrence as string | undefined) ?? "one_time";
 
-        // 3) READ BACK what we just wrote (and log it)
-        const { data: mRow, error: selErr } = await admin
-          .from("memberships")
-          .select("user_id,status,plan,period,plan_type,start_date,end_date,updated_at")
-          .eq("user_id", user_id)
-          .maybeSingle();
-        await dbg("verify_membership_row", { mRow, selErr: selErr?.message });
+  const amount_cents = s.amount_total ?? 0;
+  const currency = s.currency ?? "usd";
+  const customerId = (s.customer as string) ?? null;
+  const payment_intent_id = typeof s.payment_intent === "string" ? s.payment_intent : null;
+  const checkout_session_id = s.id;
 
-        // 4) Flip role -> member
-        const { error: roleErr } = await admin.rpc("replace_role_with_member", { p_user_id: user_id });
-        if (roleErr) await log("replace_role_with_member_failed", event.type, { user_id }, roleErr);
+  // ---- MEMBERSHIP: keep your existing logic, but only enforce user_id for memberships ----
+  if (isMembership) {
+    if (!user_id) {
+      await log("missing_user_id_membership", event.type, { metadata: s.metadata });
+      return NextResponse.json({ error: "metadata.user_id missing for membership" }, { status: 400 });
+    }
 
-        // 5) READ BACK role and log it
-        const { data: roleRow, error: roleSelErr } = await admin
-          .from("user_roles")
-          .select("role_id, roles(name)")
-          .eq("user_id", user_id)
-          .limit(1)
-          .single();
-        await dbg("verify_user_role_row", { roleRow, roleSelErr: roleSelErr?.message });
+    const isSub = s.mode === "subscription" || meta.membership_type === "subscription";
+    const subId = isSub && typeof s.subscription === "string" ? s.subscription : null;
 
-        break;
-      }
+    // dates
+    let startISO: string | null = null;
+    let endISO: string | null = null;
+    const planType = (isSub ? "subscription" : "one_time") as "subscription" | "one_time";
+
+    if (isSub && subId) {
+      const sub = await stripe.subscriptions.retrieve(subId);
+      startISO = iso(sub.current_period_start);
+      endISO = iso(sub.current_period_end);
+    } else {
+      const now = new Date();
+      startISO = now.toISOString();
+      endISO = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    }
+
+    // Write membership row
+    try {
+      await directUpsert({
+        user_id,
+        status: "active",
+        plan: meta.plan ?? "standard",
+        period: meta.period ?? "yearly",
+        amount_cents,
+        stripe_customer_id: customerId,
+        stripe_subscription_id: subId ?? null,
+        plan_type: planType,
+        start_date: startISO,
+        end_date: endISO,
+      });
+      await dbg("direct_upsert_ok", { user_id });
+    } catch (e: any) {
+      await log("direct_upsert_failed", event.type, { user_id }, e?.message);
+      throw e;
+    }
+
+    // Verify + role flip (unchanged)
+    const { data: mRow, error: selErr } = await admin
+      .from("memberships")
+      .select("user_id,status,plan,period,plan_type,start_date,end_date,updated_at")
+      .eq("user_id", user_id)
+      .maybeSingle();
+    await dbg("verify_membership_row", { mRow, selErr: selErr?.message });
+
+    const { error: roleErr } = await admin.rpc("replace_role_with_member", { p_user_id: user_id });
+    if (roleErr) await log("replace_role_with_member_failed", event.type, { user_id }, roleErr);
+
+    const { data: roleRow, error: roleSelErr } = await admin
+      .from("user_roles")
+      .select("role_id, roles(name)")
+      .eq("user_id", user_id)
+      .limit(1)
+      .single();
+    await dbg("verify_user_role_row", { roleRow, roleSelErr: roleSelErr?.message });
+
+  } else {
+    // ---- DONATION: insert into donations when the session is paid ----
+    if (s.payment_status !== "paid") {
+      await log("donation_skipped_unpaid", event.type, { checkout_session_id, payment_status: s.payment_status });
+      break;
+    }
+
+    // Upsert donation (idempotent on checkout_session)
+    const { error: dErr } = await admin
+      .from("donations")
+      .upsert(
+        {
+          method: "stripe",
+          status: "succeeded",                 // or use s.payment_status if you store 'paid'
+          amount_cents,
+          currency,
+          fund,                                // e.g., zakat/sadaqah/general
+          recurrence,                          // e.g., one_time/monthly
+          note,
+          donor_name: donorName,
+          donor_email: donorEmail,
+          user_id: user_id ?? null,            // can be null for anonymous
+          stripe_payment_intent_id: payment_intent_id,
+          stripe_checkout_session_id: checkout_session_id,
+          stripe_customer_id: customerId,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "stripe_checkout_session_id" }
+      );
+    if (dErr) {
+      await log("donation_upsert_failed", event.type, { checkout_session_id }, dErr.message);
+      throw dErr;
+    }
+
+    await dbg("donation_upsert_ok", {
+      checkout_session_id,
+      amount_cents,
+      currency,
+      fund,
+      user_id: user_id ?? null,
+    });
+  }
+
+  break;
+}
+
 
       case "customer.subscription.updated":
       case "customer.subscription.deleted": {
