@@ -1,4 +1,4 @@
-﻿// src/app/admin/page.tsx (or wherever AdminDashboard lives)
+// src/app/admin/page.tsx (or wherever AdminDashboard lives)
 'use client';
 
 import Link from 'next/link';
@@ -47,6 +47,9 @@ export default function AdminDashboard() {
       <div className="mt-6">
         <DonationsManagerButton />
       </div>
+      <Link href="/admin/social-services" className="inline-block rounded-2xl bg-[#006400] text-white px-4 py-2">
+  Manage Social Services
+</Link>
 
     </div>
   );

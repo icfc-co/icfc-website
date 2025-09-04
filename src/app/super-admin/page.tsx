@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -75,6 +75,9 @@ export default function SuperAdminDashboard() {
 
           {/* Add more cards here when ready */}
         </div>
+        <Link href="/admin/social-services" className="inline-block rounded-2xl bg-[#006400] text-white px-4 py-2">
+  Manage Social Services
+</Link>
     </div>
 
   );
