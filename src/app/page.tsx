@@ -1,8 +1,9 @@
-﻿'use client';
+'use client';
 import { useEffect, useRef, useState, Fragment } from 'react';
 import { BookOpenIcon, UsersIcon, HeartIcon } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
 import { s3ImageService } from '../app/services/s3ImageService';
+import GalleryCarousel from "@/components/gallery/GalleryCarousel";
 
 
 export default function HomePage() {
@@ -34,7 +35,7 @@ export default function HomePage() {
           }}
         >
           {/* Dark overlay */}
-          <div className="absolute inset-0 bg-black opacity-70 z-10" />
+          <div className="absolute inset-0 bg-black opacity-60 z-10" />
         </div>
 
         {/* Content */}
@@ -100,6 +101,18 @@ export default function HomePage() {
           </div>
         </div>
       </motion.section>
+       {/* Right: carousel */}
+        <div>
+          <h2
+            className="mb-3 text-2xl md:text-3xl font-semibold justify-center"
+            style={{ color: "#006400" }} // ICFC Green
+          >
+            Life at ICFC
+          </h2>
+          <div>
+          <GalleryCarousel album="About" />
+          </div>
+        </div>
     </>
   );
 }

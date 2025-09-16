@@ -98,7 +98,7 @@ export default function GalleryCarousel({ album = "About" }: { album?: string })
               <img
                 src={p.url}
                 alt="ICFC photo"
-                className="block w-full h-[420px] md:h-[520px] object-cover"
+                className="block w-full h-420 md:h-[840px] object-cover"
                 loading="lazy"
               />
             </div>
