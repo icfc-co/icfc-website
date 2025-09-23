@@ -20,8 +20,8 @@ export async function POST(req: Request) {
   const proto = req.headers.get("x-forwarded-proto") ?? (host.includes("localhost") ? "http" : "https");
   const base = /^https?:\/\//i.test(envBase) ? envBase : `${proto}://${host}`;
 
-  const success_url = new URL("/modules/membership/thanks?session_id={CHECKOUT_SESSION_ID}", base).toString();
-  const cancel_url  = new URL("/modules/membership?canceled=1", base).toString();
+  const success_url = new URL("/modules/registration/membership/thanks?session_id={CHECKOUT_SESSION_ID}", base).toString();
+  const cancel_url  = new URL("/modules/registration/membership?canceled=1", base).toString();
 
   const cookieStore = await cookies();
   const supabase = createServerClient(

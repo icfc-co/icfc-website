@@ -27,7 +27,7 @@ export default async function StartMembershipGate() {
     .eq("name", "member")
     .maybeSingle();
 
-  if (!memberRole) redirect("/modules/membership");
+  if (!memberRole) redirect("/modules/registration/membership");
 
   const { data: ur } = await supabase
     .from("user_roles")
@@ -36,6 +36,6 @@ export default async function StartMembershipGate() {
     .eq("role_id", memberRole.id)
     .maybeSingle();
 
-  if (ur) redirect("/modules/membership/manage");
-  redirect("/modules/membership");
+  if (ur) redirect("/modules/registration/membership/manage");
+  redirect("/modules/registration/membership");
 }

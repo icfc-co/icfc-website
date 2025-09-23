@@ -6,6 +6,9 @@ import { supabase } from '@/lib/supabaseClient';
 import Link from "next/link";
 import AdminMessagesButton from '@/components/admin/AdminMessagesButton';
 import PhotoManagerButton from '@/components/admin/PhotoManagerButton';
+import DonationsManagerButton from '@/components/admin/DonationsManagerButton';
+import SocialServiceManagerButton from '@/components/admin/SocialServiceManagerButton';
+import ManageUserRoleButton from '@/components/admin/ManageUserRoleButton';
 
 export default function SuperAdminDashboard() {
   const [loading, setLoading] = useState(true);
@@ -62,22 +65,16 @@ export default function SuperAdminDashboard() {
        <div className="mt-6">
           <PhotoManagerButton />
        </div>
-       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <a
-            href="/admin/donations"
-            className="rounded-2xl border bg-white p-6 shadow hover:shadow-md transition"
-          >
-            <div className="text-xl font-medium mb-1">Donations</div>
-            <p className="text-slate-600 text-sm">
-              Review Stripe, Zelle, and Bank entries, verify pending ones, and export CSV.
-            </p>
-          </a>
-
-          {/* Add more cards here when ready */}
+       <div className="mt-6">
+          <DonationsManagerButton />
+       </div>
+       <div className="mt-6">
+          <SocialServiceManagerButton />
+       </div>
+       <div className="mt-6">
+          <ManageUserRoleButton/>
         </div>
-        <Link href="/admin/social-services" className="inline-block rounded-2xl bg-[#006400] text-white px-4 py-2">
-  Manage Social Services
-</Link>
+       
     </div>
 
   );

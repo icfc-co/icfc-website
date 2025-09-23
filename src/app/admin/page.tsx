@@ -1,24 +1,39 @@
-// src/app/admin/page.tsx (or wherever AdminDashboard lives)
+// src/app/admin/page.tsx
 'use client';
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabaseClient'; // <-- import this
-
+import { supabase } from '@/lib/supabaseClient';
 import AdminMessagesButton from '@/components/admin/AdminMessagesButton';
 import PhotoManagerButton from '@/components/admin/PhotoManagerButton';
 import DonationsManagerButton from '@/components/admin/DonationsManagerButton';
+import SocialServiceManagerButton from '@/components/admin/SocialServiceManagerButton';
 
 export default function AdminDashboard() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+
     (async () => {
-      const { data, error } = await supabase.rpc('is_admin');
+      const { data: auth } = await supabase.auth.getUser();
+      const user = auth?.user;
+      if (!user) {
+        if (!cancelled) setIsAdmin(false);
+        return;
+      }
+
+      const { data, error } = await supabase.rpc('is_admin', { uid: user.id });
+
+      if (error) {
+        console.error('is_admin error:', error);
+        if (!cancelled) setIsAdmin(false);
+        return;
+      }
+
       if (!cancelled) setIsAdmin(Boolean(data));
-      if (error) console.error('is_admin error:', error);
     })();
+
     return () => { cancelled = true; };
   }, []);
 
@@ -36,21 +51,20 @@ export default function AdminDashboard() {
   return (
     <div className="p-8">
       <h1 className="text-2xl font-bold">Welcome, Admin</h1>
-      <p>This is your dashboard.</p>
-
+      {/* your buttons/links */}
+      
       <div className="mt-4">
         <AdminMessagesButton />
-      </div>
-      <div className="mt-6">
-        <PhotoManagerButton />
-      </div>
-      <div className="mt-6">
-        <DonationsManagerButton />
-      </div>
-      <Link href="/admin/social-services" className="inline-block rounded-2xl bg-[#006400] text-white px-4 py-2">
-  Manage Social Services
-</Link>
-
+       </div>
+       <div className="mt-6">
+          <PhotoManagerButton />
+       </div>
+       <div className="mt-6">
+          <DonationsManagerButton />
+       </div>
+       <div className="mt-6">
+          <SocialServiceManagerButton />
+       </div>
     </div>
   );
 }

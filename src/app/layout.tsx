@@ -1,26 +1,29 @@
-import './globals.css'
-import Layout from '@/components/Layout'
-import type { Metadata } from 'next';
-
-// If you had a font or className on <body>, keep it:
-import AuthCookieSync from '@/components/AuthCookieSync'; // client component we add
+// /src/app/layout.tsx
+import "./globals.css";
+import Layout from "@/components/Layout";
+import AuthCookieSync from "@/components/AuthCookieSync";
+import { Noto_Naskh_Arabic } from "next/font/google";
 
 export const metadata = {
-  title: 'ICFC Masjid',
-  description: 'Islamic Center of Fort Collins – Official Website',
-}
+  title: "ICFC Masjid",
+  description: "Islamic Center of Fort Collins – Official Website",
+};
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+// Load Arabic font once and expose as a CSS variable
+const arabic = Noto_Naskh_Arabic({
+  subsets: ["arabic"],
+  weight: ["400", "600", "700"],
+  display: "swap",
+  variable: "--font-arabic",
+});
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={arabic.variable}>
       <body>
-      <AuthCookieSync />
+        <AuthCookieSync />
         <Layout>{children}</Layout>
       </body>
     </html>
-  )
+  );
 }

@@ -68,7 +68,7 @@ export default async function ManageMembershipPage() {
                   </button>
                 </form>
               ) : (
-                <a href="/modules/membership" className="rounded-lg px-5 py-2 bg-green-800 text-white hover:bg-green-900">
+                <a href="/modules/registration/membership" className="rounded-lg px-5 py-2 bg-green-800 text-white hover:bg-green-900">
                   Get / Renew Membership
                 </a>
               )}

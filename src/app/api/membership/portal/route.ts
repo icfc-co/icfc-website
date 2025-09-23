@@ -39,7 +39,7 @@ export async function POST(req: Request) {
   const stripe = new Stripe(stripeSecret, { apiVersion: "2024-06-20" });
   const portal = await stripe.billingPortal.sessions.create({
     customer: m.stripe_customer_id,
-    return_url: new URL("/modules/membership/manage", base).toString(),
+    return_url: new URL("/modules/registration/membership/manage", base).toString(),
   });
 
   return NextResponse.redirect(portal.url);

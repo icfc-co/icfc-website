@@ -2,7 +2,7 @@
 'use client';
 import Link from 'next/link';
 
-export default function DonationManagerButton({ href = '/admin/donations', className = '' }: { href?: string; className?: string }) {
+export default function ManageUserRolesButton({ href = '/super-admin/roles', className = '' }: { href?: string; className?: string }) {
   return (
     <Link
       href={href}
@@ -13,7 +13,7 @@ export default function DonationManagerButton({ href = '/admin/donations', class
       }
     >
       
-      <span>Donations Manager</span>
+      <span>Manage User Roles</span>
     </Link>
   );
 }

@@ -1,14 +1,37 @@
 'use client';
-import { useEffect, useRef, useState, Fragment } from 'react';
+import { useEffect, useRef, useState, Fragment, useMemo } from 'react';
 import { BookOpenIcon, UsersIcon, HeartIcon } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
 import { s3ImageService } from '../app/services/s3ImageService';
 import GalleryCarousel from "@/components/gallery/GalleryCarousel";
 
 
+const GREEN = "#006400";
+    const GOLD  = "#FFD700";
+
+    // Optional: rotate among a few ayat in the future
+    type Ayah = {
+        ref: string;          // e.g. "Qur'an 9:18"
+        arabic: string;       // Arabic text
+        translation: string;  // English translation (Sahih Intl or your preferred)
+    };
+
+    const AYAT: Ayah[] = [
+        {
+        ref: "Qur’an 9:18",
+        arabic:
+            "إِنَّمَا يَعْمُرُ مَسَاجِدَ اللَّهِ مَنْ آمَنَ بِاللَّهِ وَالْيَوْمِ الْآخِرِ وَأَقَامَ الصَّلَاةَ وَآتَى الزَّكَاةَ وَلَمْ يَخْشَ إِلَّا اللَّهَ فَعَسَىٰ أُولَٰئِكَ أَنْ يَكُونُوا مِنَ الْمُهْتَدِينَ",
+        translation:
+            "The mosques of Allah are only to be maintained by those who believe in Allah and the Last Day, establish prayer, give zakah, and fear none except Allah. It is expected that they will be of the rightly guided.",
+        },
+        // You can add more options here if you’d like to rotate later
+    ];
+
 export default function HomePage() {
 
   const [welcomeUrl, setWelcomeUrl] = useState<string | null>(null);
+  const ayah = useMemo(() => AYAT[0], []);
+
 
   useEffect(() => {
     (async () => {
@@ -22,9 +45,73 @@ export default function HomePage() {
     })();
   }, []);
 
+
   return (
     <>
       {/* Hero Banner */}
+      <section className="relative bg-white">
+      {/* soft brand gradient backdrop */}
+      <div
+        className="absolute inset-0 opacity-10 pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(60% 60% at 20% 0%, #FFD700 0%, transparent 50%), radial-gradient(60% 60% at 80% 0%, #006400 0%, transparent 45%)",
+        }}
+      />
+      <div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-12 pb-6">
+        {/* Bismillah header */}
+        <div className="text-center">
+
+          {/* transliteration as a tasteful headline */}
+          <h2
+            className="mt-4 text-4xl sm:text-5xl md:text-6xl font-[var(--font-bebas,inherit)] tracking-wide"
+            style={{ color: GREEN, lineHeight: 1.05 }}
+          >
+            Bismillāhir-Raḥmānir-Raḥīm
+          </h2>
+
+          {/* Arabic with the new font */}
+          <p
+            dir="rtl"
+            lang="ar"
+            className="mt-4 text-3xl sm:text-4xl md:text-[44px] leading-snug font-[var(--font-arabic)]"
+            style={{ color: "#0f172a" }}
+          >
+            بِسْمِ ٱللّٰهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
+          </p>
+
+          <p className="mt-2 text-[15px] sm:text-base text-neutral-700">
+            In the Name of Allah — the Most Compassionate, Most Merciful.
+          </p>
+
+          <div
+            className="mx-auto my-6 h-1 w-24 rounded-full"
+            style={{ backgroundColor: GOLD }}
+          />
+        </div>
+
+        {/* Verse card */}
+        <div className="mx-auto max-w-5xl rounded-2xl border border-neutral-200 bg-white shadow-[0_10px_30px_rgba(0,0,0,0.06)] p-6 md:p-8">
+          <p
+            dir="rtl"
+            lang="ar"
+            className="text-2xl md:text-3xl leading-relaxed font-[var(--font-arabic)]"
+            style={{ color: "#111827" }}
+          >
+            {ayah.arabic}
+          </p>
+
+          <div className="mt-4 border-t border-neutral-200 pt-4 text-center">
+            <p className="text-neutral-700 md:text-lg leading-relaxed" >
+              {ayah.translation}
+            </p>
+            <span className="mt-2 inline-block text-sm font-medium"  style={{ color: GREEN }}>
+              {ayah.ref}
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
       <section className="relative text-center h-[100vh] overflow-hidden">
         {/* Background image with parallax effect */}
         <div
@@ -103,15 +190,12 @@ export default function HomePage() {
       </motion.section>
        {/* Right: carousel */}
         <div>
-          <h2
-            className="mb-3 text-2xl md:text-3xl font-semibold justify-center"
-            style={{ color: "#006400" }} // ICFC Green
-          >
-            Life at ICFC
-          </h2>
-          <div>
+          <div className="bg-white py-16 px-6 text-center">
+          <h2 className="text-3xl md:text-4xl font-heading text-primary">
+          Life at ICFC
+        </h2>
+        </div>
           <GalleryCarousel album="About" />
-          </div>
         </div>
     </>
   );
