@@ -1,4 +1,7 @@
 // src/app/403/page.tsx
+import Link from "next/link";
+
+
 export default function ForbiddenPage() {
   return (
     <main className="min-h-[60vh] grid place-items-center p-8">
@@ -8,7 +11,7 @@ export default function ForbiddenPage() {
           You don’t have permission to access this page. If you believe this is an error,
           please contact an administrator.
         </p>
-        <a href="/" className="inline-block mt-6 rounded bg-black text-white px-4 py-2">Go home</a>
+        <Link href="/" className="inline-block mt-6 rounded bg-black text-white px-4 py-2">Go home</Link>
       </div>
     </main>
   );
