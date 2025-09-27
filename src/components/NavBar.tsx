@@ -71,6 +71,7 @@ export default function NavBar() {
           case 'teacher': setDashboardRoute('/teacher'); break;
           case 'student': setDashboardRoute('/student'); break;
           case 'member': setDashboardRoute('/member'); break;
+          case 'user': setDashboardRoute('/user'); break;
           default: setDashboardRoute('/user');
         }
       }
