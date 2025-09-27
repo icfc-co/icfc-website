@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useRef, useState, Fragment } from 'react';
 import { Disclosure, Menu, Transition } from '@headlessui/react';
@@ -367,7 +367,7 @@ export default function NavBar() {
                 </Link>
               {/* Donate */}
               <Link
-                href="https://us.mohid.co/co/fortcollins/icfc/masjid/online/donation"
+                href="/donate"
                 className="block bg-secondary text-black px-4 py-1 rounded font-semibold mt-2"
               >
                 Donate
