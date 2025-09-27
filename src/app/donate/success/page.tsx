@@ -1,9 +1,15 @@
 'use client';
+export const prerender = false;
+export const dynamic = 'force-dynamic';
+
+import { Suspense } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
-export default function SuccessPage() {
+function SuccessInner() {
   const sp = useSearchParams();
   const sid = sp.get('session_id');
+
   return (
     <main className="min-h-screen bg-[#0f2027] text-white flex items-center justify-center px-4">
       <div className="max-w-xl text-center">
@@ -16,13 +22,27 @@ export default function SuccessPage() {
             Reference: <code>{sid}</code>
           </p>
         ) : null}
-        <a
+        <Link
           href="/donate"
           className="inline-block mt-6 bg-[#FFD700] text-black px-5 py-2 rounded-2xl"
         >
           Make another donation
-        </a>
+        </Link>
       </div>
     </main>
+  );
+}
+
+export default function SuccessPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-[#0f2027] text-white flex items-center justify-center px-4">
+          <p>Loading…</p>
+        </main>
+      }
+    >
+      <SuccessInner />
+    </Suspense>
   );
 }
