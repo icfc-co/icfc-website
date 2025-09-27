@@ -43,8 +43,8 @@ export default function Footer() {
           <h3 className="font-heading text-lg text-secondary mb-2">Services</h3>
           <ul className="space-y-1 text-sm">
             <li><Link href="/modules/services/newcomer-support">Newcomer Support</Link></li>
-            <li><Link href="/services/ask-imam">Ask Imam</Link></li>
-            <li><Link href="/registration/membership">Membership</Link></li>
+            <li><Link href="/modules/services/ask-imam">Ask Imam</Link></li>
+            <li><Link href="/modules/registration/membership">Membership</Link></li>
           </ul>
         </div>
 
