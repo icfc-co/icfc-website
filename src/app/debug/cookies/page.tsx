@@ -1,4 +1,7 @@
 'use client';
+export const prerender = false;         // <-- stop SSG for this page
+export const dynamic = 'force-dynamic'; // <-- ensure runtime render
+
 export default function CookiesDump() {
   let keys: string[] = [];
   try {

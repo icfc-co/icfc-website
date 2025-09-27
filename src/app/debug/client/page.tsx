@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 
+export const prerender = false;         // <-- stop SSG for this page
+export const dynamic = 'force-dynamic'; // <-- ensure runtime render
+
 type Dump = {
   documentCookie: string;
   localStorageKeys: string[];
