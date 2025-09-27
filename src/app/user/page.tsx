@@ -18,6 +18,20 @@ export default function UserDashboard() {
           Get Membership
         </Link>
       </div>
+
+      <div className="mt-6">
+        <Link
+      href={/elections}
+      prefetch={false}
+      className={
+        'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-white shadow-sm bg-[#006400] hover:opacity-95 ' +
+        className
+      }
+    >
+      
+      <span>ICFC Elections 2025</span>
+    </Link>
+      </div>
     </section>
   );
 }
