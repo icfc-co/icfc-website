@@ -88,10 +88,13 @@ export async function GET(req: Request) {
     }
 
     // 4) Flip role → member (admins/super-admins untouched by your SQL function)
-    const { error: roleErr } = await admin.rpc("replace_role_with_member", { p_user_id: user_id });
-    if (roleErr) {
-      return NextResponse.json({ ok: false, step: "role", error: roleErr.message }, { status: 500 });
-    }
+    const { error: roleErr } = await admin.rpc("set_user_role", {
+  target_user: user_id,
+  new_role: "member",
+});
+if (roleErr) {
+  return NextResponse.json({ ok: false, step: "role", error: roleErr.message }, { status: 500 });
+}
 
     // 5) Read back to confirm
     const { data: mRow } = await admin
