@@ -198,7 +198,13 @@ export async function POST(req: Request) {
       .maybeSingle();
     await dbg("verify_membership_row", { mRow, selErr: selErr?.message });
 
-    const { error: roleErr } = await admin.rpc("replace_role_with_member", { p_user_id: user_id });
+    const { error: roleErr } = await admin.rpc("set_user_role", {
+  target_user: user_id,
+  new_role: "member",
+});
+if (roleErr) {
+  return NextResponse.json({ ok: false, step: "role", error: roleErr.message }, { status: 500 });
+}
     if (roleErr) await log("replace_role_with_member_failed", event.type, { user_id }, roleErr);
 
     const { data: roleRow, error: roleSelErr } = await admin
