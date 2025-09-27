@@ -21,16 +21,12 @@ export default function UserDashboard() {
 
       <div className="mt-6">
         <Link
-      href={"/elections"}
-      prefetch={false}
-      className={
-        'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-white shadow-sm bg-[#006400] hover:opacity-95 ' +
-        className
-      }
-    >
-      
-      <span>ICFC Elections 2025</span>
-    </Link>
+          href="/elections"
+          className="inline-flex items-center rounded-2xl px-5 py-3 font-medium shadow-md transition
+                     bg-[#006400] text-white hover:shadow-lg hover:opacity-90"
+        >
+          ICFC Elections 2025
+        </Link>
       </div>
     </section>
   );
