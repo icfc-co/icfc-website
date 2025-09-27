@@ -121,7 +121,6 @@ export default function NavBar() {
       setIsLoggedIn(!!session);
     });
 
-    // Live updates on any submodule change
     const ch = supabase
       .channel('navbar-submodules')
       .on(
