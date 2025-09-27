@@ -21,7 +21,7 @@ export default function UserDashboard() {
 
       <div className="mt-6">
         <Link
-      href={/elections}
+      href={"/elections"}
       prefetch={false}
       className={
         'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-white shadow-sm bg-[#006400] hover:opacity-95 ' +
