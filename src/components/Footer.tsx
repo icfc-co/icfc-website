@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import Link from 'next/link';
 import { FaInstagram, FaFacebookF, FaYoutube } from 'react-icons/fa';
 
@@ -32,7 +32,7 @@ export default function Footer() {
           <h3 className="font-heading text-lg text-secondary mb-2">Quick Links</h3>
           <ul className="space-y-1 text-sm">
             <li><Link href="/about">About</Link></li>
-            <li><Link href="/contact">Contact</Link></li>
+            <li><Link href="/modules/contact">Contact</Link></li>
             <li><Link href="/donate">Donate</Link></li>
             <li><Link href="/login">Login</Link></li>
           </ul>
@@ -42,8 +42,7 @@ export default function Footer() {
         <div>
           <h3 className="font-heading text-lg text-secondary mb-2">Services</h3>
           <ul className="space-y-1 text-sm">
-            <li><Link href="/services/nikah">Nikah</Link></li>
-            <li><Link href="/services/ruqyah">Ruqyah</Link></li>
+            <li><Link href="/modules/services/newcomer-support">Newcomer Support</Link></li>
             <li><Link href="/services/ask-imam">Ask Imam</Link></li>
             <li><Link href="/registration/membership">Membership</Link></li>
           </ul>
