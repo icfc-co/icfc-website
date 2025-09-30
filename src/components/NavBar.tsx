@@ -248,6 +248,7 @@ export default function NavBar() {
                     Donate
                   </Link>
 
+
                   {/* Login/Profile */}
                   {!isLoggedIn ? (
                     <Link
@@ -313,7 +314,14 @@ export default function NavBar() {
                         </Menu.Items>
                       </Transition>
                     </Menu>
+
                   )}
+                  <Link
+                    href="/modules/registration/membership"
+                    className="bg-emerald-700 hover:bg-green-800 text-white px-4 py-1 rounded font-semibold"
+                  >
+                    Membership
+                  </Link>
                 </div>
 
                 {/* Mobile toggle */}
@@ -401,6 +409,7 @@ export default function NavBar() {
                   >
                     Logout
                   </button>
+
                 </>
               )}
             </Disclosure.Panel>
