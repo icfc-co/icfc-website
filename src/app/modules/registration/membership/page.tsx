@@ -169,7 +169,10 @@ export default function MembershipStartPage() {
             {/* Family Members */}
             <section className="rounded-2xl border border-gray-200 p-4 shadow-sm">
               <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900">Family Members</h2>
+                <div className="flex items-baseline gap-2">
+      <h2 className="text-lg font-semibold text-gray-900">Family Members</h2>
+      <span className="text-xs text-gray-500">(Spouse and other)</span>
+    </div>
                 <button
                   onClick={addMember}
                   className="rounded-xl border border-emerald-600 px-4 py-2 text-emerald-700 hover:bg-emerald-50"
