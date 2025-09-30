@@ -1,23 +1,20 @@
-// src/app/modules/registration/membership/thanks/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import ThanksClient from "./ThanksClient";
 
+export const dynamic = "force-dynamic";     // disable prerender
+export const fetchCache = "force-no-store"; // no caching
 
-export const dynamic = "force-dynamic";          // don't prerender
-export const fetchCache = "force-no-store";      // avoid caching during lookup
-
-export default function ThanksPage() {
+export default function Page() {
   const sp = useSearchParams();
   const sessionId = sp.get("session_id") || "";
 
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]   = useState<string | null>(null);
   const [household, setHousehold] = useState<any>(null);
-  const [members, setMembers] = useState<any[]>([]);
-  const [payment, setPayment] = useState<any>(null);
+  const [members, setMembers]     = useState<any[]>([]);
+  const [payment, setPayment]     = useState<any>(null);
 
   useEffect(() => {
     let tries = 0, stop = false;
@@ -55,8 +52,6 @@ export default function ThanksPage() {
   const total = useMemo(() => (payment?.amount_cents ?? 0) / 100, [payment]);
 
   return (
-    <Suspense fallback={<div className="max-w-3xl mx-auto p-6">Loading…</div>}>
-      <ThanksClient />
     <div className="max-w-3xl mx-auto p-6 space-y-4">
       <h1 className="text-2xl font-semibold">Thank you for your support!</h1>
 
@@ -82,7 +77,7 @@ export default function ThanksPage() {
               {members.map((m) => (
                 <li key={m.id} className="flex items-center justify-between">
                   <span>{m.name} · Age {m.age} ({m.membership_type})</span>
-                  <span>${((m.price_cents || 0)/100).toFixed(0)}</span>
+                  <span>${((m.price_cents || 0) / 100).toFixed(0)}</span>
                 </li>
               ))}
             </ul>
@@ -97,6 +92,5 @@ export default function ThanksPage() {
         <p>We couldn’t find your membership yet. Please refresh this page in a minute.</p>
       )}
     </div>
-    </Suspense>
   );
 }
