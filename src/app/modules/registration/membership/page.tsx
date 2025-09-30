@@ -25,7 +25,7 @@ export default function MembershipStartPage() {
   const [members, setMembers] = useState<MemberInput[]>([
     { name: '', age: '', sex: '', email: '', phone: '', membership_type: '' },
   ]);
-  const [recurrence, setRecurrence] = useState<Recurrence>('yearly');
+  const [recurrence, setRecurrence] = useState<Recurrence>('one_time');
   const [submitting, setSubmitting] = useState(false);
   const [prices, setPrices] = useState<PriceMap | null>(null);
   const [loadingPrices, setLoadingPrices] = useState(true);
