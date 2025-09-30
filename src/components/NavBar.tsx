@@ -163,7 +163,7 @@ export default function NavBar() {
       <Disclosure as="nav" className="bg-white shadow">
         {({ open }) => (
           <>
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 font-body">
+            <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 font-body">
               <div className="flex justify-between h-16 items-center">
                 {/* Logo */}
                 <Link href="/" className="flex items-center space-x-2">
@@ -234,7 +234,7 @@ export default function NavBar() {
                         pathname?.startsWith('/modules/contact')
                           ? 'text-primary font-semibold'
                           : 'text-gray-700 hover:text-primary',
-                        'block font-medium mt-2'
+                        'block font-medium'
                       )}
                     >
                       Contact

@@ -4,6 +4,7 @@ import { BookOpenIcon, UsersIcon, HeartIcon } from '@heroicons/react/24/outline'
 import { motion } from 'framer-motion';
 import { s3ImageService } from '../app/services/s3ImageService';
 import GalleryCarousel from "@/components/gallery/GalleryCarousel";
+import Link from 'next/link';
 
 
 const GREEN = "#006400";
@@ -111,6 +112,15 @@ export default function HomePage() {
           </div>
         </div>
       </div>
+      <div className="flex flex-wrap justify-center gap-4 mb-8">
+  <a
+    href="/modules/registration/membership"
+    className="bg-primary hover:bg-green-800 font-body text-white px-6 py-2 rounded-2xl shadow transition"
+  >
+    Become A Member
+  </a>
+</div>
+
     </section>
       <section className="relative text-center h-[100vh] overflow-hidden">
         {/* Background image with parallax effect */}
