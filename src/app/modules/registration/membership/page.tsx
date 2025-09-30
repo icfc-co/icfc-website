@@ -316,19 +316,19 @@ export default function MembershipStartPage() {
                   <input
                     type="radio"
                     name="recurrence"
-                    checked={recurrence === 'yearly'}
-                    onChange={() => setRecurrence('yearly')}
+                    checked={recurrence === 'one_time'}
+                    onChange={() => setRecurrence('one_time')}
                   />
-                  <span>Recurring: Yearly (renews every year)</span>
+                  <span>One-time (covers one year, no auto renew)</span>
                 </label>
                 <label className="flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 hover:bg-gray-50">
                   <input
                     type="radio"
                     name="recurrence"
-                    checked={recurrence === 'one_time'}
-                    onChange={() => setRecurrence('one_time')}
+                    checked={recurrence === 'yearly'}
+                    onChange={() => setRecurrence('yearly')}
                   />
-                  <span>One-time (covers one year, no auto renew)</span>
+                  <span>Recurring: Yearly (renews every year)</span>
                 </label>
               </div>
               <p className="mt-2 text-sm text-gray-500">
