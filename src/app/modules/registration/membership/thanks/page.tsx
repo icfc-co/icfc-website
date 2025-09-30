@@ -3,8 +3,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import ThanksClient from "./ThanksClient";
 
-export const dynamic = "force-dynamic";
+
+export const dynamic = "force-dynamic";          // don't prerender
+export const fetchCache = "force-no-store";      // avoid caching during lookup
 
 export default function ThanksPage() {
   const sp = useSearchParams();
@@ -52,6 +55,8 @@ export default function ThanksPage() {
   const total = useMemo(() => (payment?.amount_cents ?? 0) / 100, [payment]);
 
   return (
+    <Suspense fallback={<div className="max-w-3xl mx-auto p-6">Loading…</div>}>
+      <ThanksClient />
     <div className="max-w-3xl mx-auto p-6 space-y-4">
       <h1 className="text-2xl font-semibold">Thank you for your support!</h1>
 
@@ -92,5 +97,6 @@ export default function ThanksPage() {
         <p>We couldn’t find your membership yet. Please refresh this page in a minute.</p>
       )}
     </div>
+    </Suspense>
   );
 }
