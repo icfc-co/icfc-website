@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 
 type Recurrence = 'one_time' | 'yearly';
-type Sex = 'male' | 'female' | 'other' | 'prefer_not_to_say';
+type Sex = 'male' | 'female'
 type MemberType = 'student' | 'senior' | 'regular' | 'youth';
 
 type MemberInput = {
@@ -74,22 +74,52 @@ export default function MembershipStartPage() {
     return { subtotal, totalLabel: `$${subtotal}` };
   }, [members, prices]);
 
+  // ── Validation helpers ────────────────────────────────────────────────────────
+  const isValidEmail = (s: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
+
   const validateMembers = (): string | null => {
-    if (members.length === 0) return 'Please add at least one family member.';
-    for (let i = 0; i < members.length; i++) {
-      const m = members[i];
-      const ageNum = Number(m.age || 0);
-      if (!m.name || !ageNum || !m.sex || !m.membership_type) {
-        return `Please complete all required fields for member #${i + 1}.`;
-      }
-      // Guard: Youth must be under cap if pricing defines one
-      if (m.membership_type === 'youth') {
-        const cap = prices?.youth?.max_age ?? 17;
-        if (ageNum > cap) return `Member #${i + 1}: Youth must be under ${cap + 1}.`;
-      }
+  if (members.length === 0) return 'Please add at least one family member.';
+
+  // 1) Required fields + basic rules
+  for (let i = 0; i < members.length; i++) {
+    const m = members[i];
+    const idx = i + 1;
+    const ageNum = Number(m.age);
+
+    if (!m.name.trim()) return `Member #${idx}: Full name is required.`;
+    if (!ageNum || ageNum < 0) return `Member #${idx}: Please enter a valid age.`;
+    if (!m.sex) return `Member #${idx}: Please select sex.`;
+    if (!m.email.trim()) return `Member #${idx}: Email is required.`;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(m.email.trim()))
+      return `Member #${idx}: Please enter a valid email address.`;
+    if (!m.phone.trim()) return `Member #${idx}: Phone is required.`;
+    if (!m.membership_type) return `Member #${idx}: Please select a membership type.`;
+
+    if (m.membership_type === 'youth') {
+      const cap = prices?.youth?.max_age ?? 17;
+      if (ageNum > cap) return `Member #${idx}: Youth must be under ${cap + 1}.`;
     }
-    return null;
-  };
+  }
+
+  // 2) Uniqueness across NON-youth only
+  const seenNonYouth = new Map<string, number>(); // email -> first non-youth index (1-based)
+  for (let i = 0; i < members.length; i++) {
+    const m = members[i];
+    const isYouth = m.membership_type === 'youth';
+    if (isYouth) continue;
+
+    const emailKey = m.email.trim().toLowerCase();
+    const firstIdx = seenNonYouth.get(emailKey);
+    if (firstIdx !== undefined) {
+      return `Duplicate email among non-youth members: "${m.email}" is used for members #${firstIdx} and #${i + 1}. Each Regular/Student/Senior must use a unique email.`;
+    }
+    seenNonYouth.set(emailKey, i + 1);
+  }
+
+  return null;
+};
+
 
   const onCheckout = async () => {
     const err = validateMembers();
@@ -139,6 +169,8 @@ export default function MembershipStartPage() {
   const priceDisplay = (cents: number | undefined, fallback: number) =>
     `$${((cents ?? fallback) / 100).toFixed(0)}`;
 
+  const Req = () => <span className="text-red-600">*</span>;
+
   return (
     <div className="min-h-screen bg-white">
       {/* ICFC green top bar */}
@@ -170,15 +202,10 @@ export default function MembershipStartPage() {
             <section className="rounded-2xl border border-gray-200 p-4 shadow-sm">
               <div className="mb-4 flex items-center justify-between">
                 <div className="flex items-baseline gap-2">
-      <h2 className="text-lg font-semibold text-gray-900">Family Members</h2>
-      <span className="text-xs text-gray-500">(Spouse and other)</span>
-    </div>
-                <button
-                  onClick={addMember}
-                  className="rounded-xl border border-emerald-600 px-4 py-2 text-emerald-700 hover:bg-emerald-50"
-                >
-                  Add member
-                </button>
+                  <h2 className="text-lg font-semibold text-gray-900">Family Members</h2>
+                  <span className="text-xs text-gray-500">(Spouse and other)</span>
+                </div>
+                {/* (Moved Add button to bottom; keeping none here) */}
               </div>
 
               <div className="space-y-3">
@@ -193,7 +220,9 @@ export default function MembershipStartPage() {
                       {/* Full name */}
                       <div className="md:col-span-3">
                         <div className="flex items-center justify-between">
-                          <label className="text-sm font-medium text-gray-700">Full Name</label>
+                          <label className="text-sm font-medium text-gray-700">
+                            Full Name <Req />
+                          </label>
                           {isPrimary && (
                             <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
                               Primary
@@ -204,6 +233,7 @@ export default function MembershipStartPage() {
                           className="mt-1 w-full rounded-lg border p-2 outline-none focus:ring-2 focus:ring-emerald-600"
                           placeholder="Full name"
                           value={m.name}
+                          required
                           onChange={(e) =>
                             setMembers((s) => s.map((x, idx) => (idx === i ? { ...x, name: e.target.value } : x)))
                           }
@@ -212,13 +242,16 @@ export default function MembershipStartPage() {
 
                       {/* Age */}
                       <div className="md:col-span-2">
-                        <label className="text-sm font-medium text-gray-700">Age</label>
+                        <label className="text-sm font-medium text-gray-700">
+                          Age <Req />
+                        </label>
                         <input
                           className="mt-1 w-full rounded-lg border p-2 outline-none focus:ring-2 focus:ring-emerald-600"
                           placeholder="Age"
                           type="number"
                           min={0}
                           value={m.age}
+                          required
                           onChange={(e) =>
                             setMembers((s) => s.map((x, idx) => (idx === i ? { ...x, age: e.target.value as any } : x)))
                           }
@@ -227,10 +260,13 @@ export default function MembershipStartPage() {
 
                       {/* Sex */}
                       <div className="md:col-span-2">
-                        <label className="text-sm font-medium text-gray-700">Sex</label>
+                        <label className="text-sm font-medium text-gray-700">
+                          Sex <Req />
+                        </label>
                         <select
                           className="mt-1 w-full rounded-lg border p-2 outline-none focus:ring-2 focus:ring-emerald-600"
                           value={m.sex || ''}
+                          required
                           onChange={(e) =>
                             setMembers((s) => s.map((x, idx) => (idx === i ? { ...x, sex: e.target.value as any } : x)))
                           }
@@ -243,11 +279,15 @@ export default function MembershipStartPage() {
 
                       {/* Email */}
                       <div className="md:col-span-3">
-                        <label className="text-sm font-medium text-gray-700">Email</label>
+                        <label className="text-sm font-medium text-gray-700">
+                          Email <Req />
+                        </label>
                         <input
                           className="mt-1 w-full rounded-lg border p-2 outline-none focus:ring-2 focus:ring-emerald-600"
                           placeholder="Email"
+                          type="email"
                           value={m.email}
+                          required
                           onChange={(e) =>
                             setMembers((s) => s.map((x, idx) => (idx === i ? { ...x, email: e.target.value } : x)))
                           }
@@ -256,58 +296,86 @@ export default function MembershipStartPage() {
 
                       {/* Phone */}
                       <div className="md:col-span-2">
-                        <label className="text-sm font-medium text-gray-700">Phone</label>
+                        <label className="text-sm font-medium text-gray-700">
+                          Phone <Req />
+                        </label>
                         <input
                           className="mt-1 w-full rounded-lg border p-2 outline-none focus:ring-2 focus:ring-emerald-600"
                           placeholder="Phone"
                           value={m.phone}
+                          required
                           onChange={(e) =>
                             setMembers((s) => s.map((x, idx) => (idx === i ? { ...x, phone: e.target.value } : x)))
                           }
                         />
                       </div>
 
-                      {/* Membership Type */}
-                      <div className="md:col-span-3">
-                        <label className="text-sm font-medium text-gray-700">Type of Membership</label>
-                        <select
-                          className="mt-1 w-full rounded-lg border p-2 outline-none focus:ring-2 focus:ring-emerald-600"
-                          value={m.membership_type || ''}
-                          onChange={(e) =>
-                            setMembers((s) =>
-                              s.map((x, idx) =>
-                                idx === i ? { ...x, membership_type: e.target.value as MemberType } : x
+                       {/* Membership Type + Amount + Remove (responsive row) */}
+                      <div className="md:col-span-7 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-end md:gap-4">
+                        {/* Type select */}
+                        <div>
+                          <label className="text-sm font-medium text-gray-700">
+                            Type of Membership <Req />
+                          </label>
+                          <select
+                            className="mt-1 w-full rounded-lg border p-2 outline-none focus:ring-2 focus:ring-emerald-600"
+                            value={m.membership_type || ''}
+                            required
+                            onChange={(e) =>
+                              setMembers((s) =>
+                                s.map((x, idx) =>
+                                  idx === i ? { ...x, membership_type: e.target.value as MemberType } : x
+                                )
                               )
-                            )
-                          }
-                        >
-                          <option value="">Select…</option>
-                          <option value="student">Student — {priceDisplay(prices?.student?.amount_cents, 1500)}</option>
-                          <option value="senior">Senior — {priceDisplay(prices?.senior?.amount_cents, 1500)}</option>
-                          <option value="regular">Regular — {priceDisplay(prices?.regular?.amount_cents, 2500)}</option>
-                          <option value="youth">
-                            Youth (under {((prices?.youth?.max_age ?? 17) + 1)}) — {priceDisplay(prices?.youth?.amount_cents, 0)}
-                          </option>
-                        </select>
-                      </div>
+                            }
+                          >
+                            <option value="">Select…</option>
+                            <option value="student">Student — {priceDisplay(prices?.student?.amount_cents, 1500)}</option>
+                            <option value="senior">Senior — {priceDisplay(prices?.senior?.amount_cents, 1500)}</option>
+                            <option value="regular">Regular — {priceDisplay(prices?.regular?.amount_cents, 2500)}</option>
+                            <option value="youth">
+                              Youth (under {((prices?.youth?.max_age ?? 17) + 1)}) — {priceDisplay(prices?.youth?.amount_cents, 0)}
+                            </option>
+                          </select>
+                        </div>
 
-                      {/* Price + Remove (padded cell) */}
-                      <div className="md:col-span-1 flex items-end justify-between gap-3 rounded-lg md:bg-gray-50 p-2">
-                        <div className="text-s text-gray-600">Amount:</div>
-                        <span className="shrink-0 rounded-full bg-emerald-50 px-3 py-1 text-s font-semibold text-emerald-700">
-                          ${per}
-                        </span>
-                        <button
-                          onClick={() => removeMember(i)}
-                          className="rounded-lg border px-3 py-1 bg-red-100 text-gray-700 hover:bg-gray-100"
-                          aria-label={`Remove member ${i + 1}`}
-                        >
-                          Remove
-                        </button>
-                      </div>
+                        {/* Amount chip (shows inline on md+, below on mobile) */}
+                        <div className="mt-2 md:mt-0 flex items-center gap-2 md:pl-4 md:border-l md:border-gray-200">
+                          <span className="hidden md:inline text-sm text-gray-600">Amount:</span>
+                          <span className="shrink-0 rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700">
+                            ${per}
+                          </span>
+                        </div>
+
+                        {/* Remove */}
+                        <div className="mt-2 md:mt-0">
+                          {members.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeMember(i)}
+                              className="h-[42px] rounded-lg border px-3 bg-red-100 text-gray-700 hover:bg-gray-100"
+                              aria-label={`Remove member ${i + 1}`}
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                    </div>
+
                     </div>
                   );
                 })}
+
+                {/* Add member at the bottom */}
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={addMember}
+                    className="rounded-xl border border-emerald-600 px-4 py-2 text-emerald-700 hover:bg-emerald-50"
+                  >
+                    + Add member
+                  </button>
+                </div>
               </div>
             </section>
 
@@ -340,20 +408,32 @@ export default function MembershipStartPage() {
             </section>
 
             {/* Submit */}
-            <section className="flex items-center justify-between">
+            <section className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="text-lg font-semibold">
                 Total today:{' '}
                 <span className="text-emerald-700">
                   {loadingPrices ? '—' : totals.totalLabel}
                 </span>
               </div>
-              <button
-                disabled={submitting || loadingPrices}
-                onClick={onCheckout}
-                className="rounded-2xl bg-emerald-700 px-6 py-3 font-medium text-white shadow hover:bg-emerald-800 disabled:opacity-60"
-              >
-                {submitting ? 'Redirecting…' : 'Continue to Secure Checkout'}
-              </button>
+
+              {/* Secondary add button up here too (optional convenience) */}
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={addMember}
+                  className="rounded-xl border border-emerald-600 px-4 py-2 text-emerald-700 hover:bg-emerald-50"
+                >
+                  + Add member
+                </button>
+
+                <button
+                  disabled={submitting || loadingPrices}
+                  onClick={onCheckout}
+                  className="rounded-2xl bg-emerald-700 px-6 py-3 font-medium text-white shadow hover:bg-emerald-800 disabled:opacity-60"
+                >
+                  {submitting ? 'Redirecting…' : 'Continue to Secure Checkout'}
+                </button>
+              </div>
             </section>
           </div>
 
