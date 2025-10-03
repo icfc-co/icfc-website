@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const primary = body?.primary as { name: string; email?: string; phone?: string };
     const members = (body?.members as Member[]) || [];
-    const recurrence: Recurrence = (body?.recurrence as Recurrence) || 'yearly';
+    const recurrence: Recurrence = (body?.recurrence as Recurrence) || 'one_time';
 
     if (!members.length || !members[0].name) {
       return NextResponse.json({ error: 'Primary member missing.' }, { status: 400 });
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
     const success_url = new URL('/modules/registration/membership/thanks', base).toString() + '?session_id={CHECKOUT_SESSION_ID}';
     const cancel_url  = new URL('/modules/registration/membership?canceled=1', base).toString();
 
-    const isRecurring = recurrence === 'yearly';
+    const isRecurring = recurrence === 'one_time';
 
     // Build line items; skip $0 items
     const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = [];

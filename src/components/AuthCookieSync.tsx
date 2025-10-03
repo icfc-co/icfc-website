@@ -2,12 +2,19 @@
 
 import { useEffect } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
+import { refreshRole } from '@/lib/refreshRole';
+
 
 export default function AuthCookieSync() {
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
+
+  useEffect(() => {
+    refreshRole(); // syncs member role when session is restored
+  }, []);
+
 
   useEffect(() => {
     const { data: { subscription } } =
@@ -31,6 +38,8 @@ export default function AuthCookieSync() {
 
     return () => subscription.unsubscribe();
   }, []); // eslint-disable-line
+
+  
 
   return null;
 }

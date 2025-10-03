@@ -6,17 +6,20 @@ import { createClient } from "@supabase/supabase-js";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// ---------- util ----------
+/* ----------------------------- helpers ----------------------------- */
 function missingEnv(...keys: string[]) {
   return keys.filter((k) => !process.env[k]);
 }
 const iso = (unix?: number | null) => (unix ? new Date(unix * 1000).toISOString() : null);
 const todayISO = () => { const d = new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); };
 const plusOneYearISO = (yyyy_mm_dd: string) => { const d = new Date(yyyy_mm_dd + "T00:00:00Z"); d.setUTCFullYear(d.getUTCFullYear() + 1); return d.toISOString().slice(0,10); };
+const isUuid = (v: any) =>
+  typeof v === "string" &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 
-// ---------- route ----------
+/* ------------------------------ route ------------------------------ */
 export async function POST(req: Request) {
-  // 0) env
+  // 0) ENV
   const miss = missingEnv(
     "STRIPE_SECRET_KEY",
     "STRIPE_WEBHOOK_SECRET",
@@ -31,11 +34,11 @@ export async function POST(req: Request) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-06-20" });
   const admin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!, // service role, bypass RLS
+    process.env.SUPABASE_SERVICE_ROLE_KEY!, // service role (RLS bypass)
     { db: { schema: "public" } }
   );
 
-  // logging helpers
+  // logging
   const log = async (note: string, type: string, payload: any, error?: any) => {
     const res = await admin.from("webhook_logs").insert({
       event_type: type,
@@ -50,7 +53,7 @@ export async function POST(req: Request) {
     await log(note, "debug", payload);
   };
 
-  // 1) probe write (fail early if db creds wrong)
+  // 1) probe write (fail early if DB creds are wrong)
   const probe = await admin.from("webhook_logs").insert({
     event_type: "probe",
     note: "webhook boot",
@@ -82,12 +85,10 @@ export async function POST(req: Request) {
 
   await dbg("received_event", { id: event.id, type: event.type, live: event.livemode });
 
-  // 3) **Idempotency gate** — skip if we already processed this Stripe event
-  // This requires the `processed_events(event_id primary key)` table (see SQL you ran).
+  // 3) Idempotency: skip if we already processed this event
   {
     const { error } = await admin.from("processed_events").insert({ event_id: event.id });
     if (error) {
-      // unique violation => already processed this event (Stripe retry)
       await log("event_already_processed", "webhook", { event_id: event.id }, error.message);
       return NextResponse.json({ received: true });
     }
@@ -95,9 +96,9 @@ export async function POST(req: Request) {
 
   try {
     switch (event.type) {
-      // =====================================================================
-      // A) CHECKOUT SESSION COMPLETED — membership OR donation
-      // =====================================================================
+      /* =======================================================================
+       * A) CHECKOUT SESSION COMPLETED — membership OR donation
+       * ======================================================================= */
       case "checkout.session.completed": {
         const s = event.data.object as Stripe.Checkout.Session;
 
@@ -105,18 +106,18 @@ export async function POST(req: Request) {
         const fund = (meta.fund ?? "membership").toLowerCase();
         const isMembership = fund === "membership";
 
-        const user_id =
-          (meta.user_id as string | undefined) ||
-          (meta.userId as string | undefined) ||
-          undefined;
+        // 🔐 Accept only a real UUID for user_id; otherwise store null
+        const rawUserId =
+          meta.supabase_user_id || meta.user_id || meta.userId || undefined;
+        const user_id = isUuid(rawUserId) ? (rawUserId as string) : null;
 
         await log("checkout_session_meta", "webhook", {
-          fund, isMembership, user_id, mode: s.mode, payment_status: s.payment_status,
+          fund, isMembership, rawUserId, accepted_user_id: Boolean(user_id), mode: s.mode, payment_status: s.payment_status,
         });
 
         const customerId = (s.customer as string) ?? null;
 
-        // ------------------------------- MEMBERSHIP PATH -------------------------------
+        /* ---------------------------- MEMBERSHIP PATH ---------------------------- */
         if (isMembership) {
           if (s.payment_status !== "paid") {
             await log("membership_skipped_unpaid", "webhook", { session_id: s.id, status: s.payment_status });
@@ -143,9 +144,9 @@ export async function POST(req: Request) {
             return row.amount_cents ?? 0;
           };
 
-          // payload from the membership/checkout route
+          // payload from your membership checkout route
           const primary_name  = meta.primary_name || "";
-          const primary_email = (meta.primary_email || "").trim();
+          const primary_email = (meta.primary_email || "").trim().toLowerCase();
           const primary_phone = meta.primary_phone || "";
           const members_json  = meta.members_json || "[]";
           const recurrence    = (meta.recurrence ?? "yearly") as "one_time" | "yearly";
@@ -165,7 +166,7 @@ export async function POST(req: Request) {
           let start_date = todayISO();
           let end_date   = plusOneYearISO(start_date);
 
-          // Helper: dedupe members client snapshot before insert (name/email)
+          // dedupe members client snapshot before insert (name/email)
           const uniqMembers: typeof members = [];
           const seen = new Set<string>();
           for (const m of members) {
@@ -205,7 +206,7 @@ export async function POST(req: Request) {
             start_date   = startFrom;
             end_date     = endTo;
 
-            // refresh members snapshot (delete+insert, guarded by unique index)
+            // refresh members snapshot (delete+insert)
             const del = await admin.from("membership_members").delete().eq("household_id", household_id);
             if (del.error) {
               await log("members_delete_failed", "webhook", { household_id }, del.error.message);
@@ -218,27 +219,23 @@ export async function POST(req: Request) {
                 name: m.name,
                 age: m.age,
                 phone: m.phone || null,
-                email: (m.email || null),
+                email: (m.email?.toLowerCase() || null),
                 sex: m.sex || null,
                 membership_type: m.membership_type,
                 price_cents: amountFor(m.membership_type, m.age),
               }));
               const ins = await admin.from("membership_members").insert(rows);
-              if (ins.error) {
-                // unique index may reject exact duplicates; safe to ignore unique violations
-                if (!String(ins.error.code).includes("23505")) {
-                  await log("members_insert_failed", "webhook", { household_id }, ins.error.message);
-                  throw ins.error;
-                }
+              if (ins.error && String(ins.error.code) !== "23505") {
+                await log("members_insert_failed", "webhook", { household_id }, ins.error.message);
+                throw ins.error;
               }
             }
           } else {
             // FIRST-TIME: create or reuse existing household for same period+email
-            // We *try* insert; on unique violation (from your unique index) we select the id.
             const tryInsert = await admin
               .from("membership_households")
               .insert({
-                user_id: user_id || null,
+                user_id: user_id, // ✅ UUID or null
                 primary_name,
                 primary_email,
                 primary_phone,
@@ -252,7 +249,6 @@ export async function POST(req: Request) {
               .single();
 
             if (tryInsert.error) {
-              // If conflict (unique), fetch the existing row
               if (String(tryInsert.error.code) === "23505") {
                 const sel = await admin
                   .from("membership_households")
@@ -274,56 +270,48 @@ export async function POST(req: Request) {
               household_id = tryInsert.data.id;
             }
 
-            // insert members snapshot (deduped)
+            // insert members snapshot
             if (uniqMembers.length) {
               const rows = uniqMembers.map((m) => ({
                 household_id,
                 name: m.name,
                 age: m.age,
                 phone: m.phone || null,
-                email: (m.email || null),
+                email: (m.email?.toLowerCase() || null),
                 sex: m.sex || null,
                 membership_type: m.membership_type,
                 price_cents: amountFor(m.membership_type, m.age),
               }));
               const mem = await admin.from("membership_members").insert(rows);
-              if (mem.error) {
-                if (!String(mem.error.code).includes("23505")) {
-                  await log("members_insert_failed", "webhook", { household_id }, mem.error.message);
-                  throw mem.error;
-                }
+              if (mem.error && String(mem.error.code) !== "23505") {
+                await log("members_insert_failed", "webhook", { household_id }, mem.error.message);
+                throw mem.error;
               }
             }
 
-            // eligibility (auto-member when they sign up later)
+            // eligibility for auto-role at future login
             const emails = new Set<string>();
-            if (primary_email) emails.add(primary_email.toLowerCase());
+            if (primary_email) emails.add(primary_email);
             for (const m of uniqMembers) if (m.email) emails.add(m.email.toLowerCase());
-
             if (emails.size) {
               const eligRows = Array.from(emails).map((email) => ({ email, household_id, active: true }));
               const insElig = await admin.from("member_eligibility").insert(eligRows);
-              if (insElig.error) {
-                // index on (lower(email), household_id) may raise 23505; ignore that
-                if (!String(insElig.error.code).includes("23505")) {
-                  await log("eligibility_upsert_failed", "webhook", { household_id }, insElig.error.message);
-                  throw insElig.error;
-                }
+              if (insElig.error && String(insElig.error.code) !== "23505") {
+                await log("eligibility_upsert_failed", "webhook", { household_id }, insElig.error.message);
+                throw insElig.error;
               }
             }
           }
 
-          // authoritative total from members snapshot (youth $0 already handled)
+          // authoritative total from snapshot
           const { data: snap, error: snapErr } = await admin
             .from("membership_members")
             .select("price_cents")
             .eq("household_id", household_id);
-          if (snapErr) {
-            await log("members_snapshot_failed", "webhook", { household_id }, snapErr.message);
-          }
+          if (snapErr) await log("members_snapshot_failed", "webhook", { household_id }, snapErr.message);
           const total_cents = (snap || []).reduce((sum: number, r: any) => sum + (r.price_cents || 0), 0);
 
-          // payment row: UPSERT by stripe_session_id (unique index)
+          // payment row (UPSERT by stripe_session_id)
           const interval = recurrence === "yearly" ? "year" : null;
           const pay = await admin
             .from("membership_payments")
@@ -341,7 +329,7 @@ export async function POST(req: Request) {
             throw pay.error;
           }
 
-          // Optional: promote logged-in buyer to member
+          // Optional: promote buyer (only if we have a valid UUID)
           if (user_id) {
             const { error: roleErr } = await admin.rpc("service_set_member_role", { p_user_id: user_id });
             if (roleErr) await log("service_set_member_role_failed", "webhook", { user_id }, roleErr.message);
@@ -351,7 +339,7 @@ export async function POST(req: Request) {
           break;
         }
 
-        // ------------------------------- DONATION PATH (unchanged) -------------------------------
+        /* ------------------------------ DONATION PATH ------------------------------ */
         if (s.payment_status !== "paid") {
           await log("donation_skipped_unpaid", "webhook", { session_id: s.id, status: s.payment_status });
           return NextResponse.json({ received: true });
@@ -377,7 +365,7 @@ export async function POST(req: Request) {
             note,
             donor_name: donorName,
             donor_email: donorEmail,
-            user_id: (user_id ?? null) as string | null,
+            user_id: user_id, // ✅ UUID or null
             stripe_payment_intent_id: payment_intent_id,
             stripe_checkout_session_id: checkout_session_id,
             stripe_customer_id: customerId,
@@ -394,9 +382,9 @@ export async function POST(req: Request) {
         break;
       }
 
-      // =====================================================================
-      // B) SUBSCRIPTION CHANGES — legacy membership table sync (optional)
-      // =====================================================================
+      /* =======================================================================
+       * B) SUBSCRIPTION CHANGES — optional legacy membership sync
+       * ======================================================================= */
       case "customer.subscription.updated":
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
@@ -439,7 +427,7 @@ export async function POST(req: Request) {
           await log("membership_upsert_error_sub", "webhook", { user_id: m.user_id }, res.error.message);
           throw res.error;
         }
-        await log("membership_upsert_ok_sub", "webhook", { user_id: m.user_id, status });
+        await log("membership_upsert_ok_sub", { user_id: m.user_id, status } as any, {});
 
         if (status === "canceled" || status === "unpaid" || status === "incomplete_expired") {
           const { error: dErr } = await admin.rpc("service_set_user_role", { p_user_id: m.user_id });
@@ -448,15 +436,6 @@ export async function POST(req: Request) {
           const { error: pErr } = await admin.rpc("service_set_member_role", { p_user_id: m.user_id });
           if (pErr) await log("service_set_member_role_failed", "webhook", { user_id: m.user_id }, pErr.message);
         }
-
-        const { data: roleRow, error: roleSelErr } = await admin
-          .from("user_roles")
-          .select("role_id, roles(name)")
-          .eq("user_id", m.user_id)
-          .limit(1)
-          .single();
-        await dbg("role_verify_sub", { roleRow, roleSelErr: roleSelErr?.message });
-
         break;
       }
 
@@ -472,7 +451,7 @@ export async function POST(req: Request) {
   }
 }
 
-// Simple GET for ping/debug
+/* ------------------------------- GET ping ------------------------------- */
 export async function GET() {
   const miss = missingEnv("NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY");
   if (miss.length) return NextResponse.json({ ok: false, error: `Missing env: ${miss.join(", ")}` }, { status: 500 });

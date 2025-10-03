@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
+import { refreshRole } from '@/lib/refreshRole';
+
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -14,64 +16,68 @@ export default function LoginPage() {
   const [warning, setWarning] = useState('');
   const router = useRouter();
 
+
+
   const handleLogin = async () => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) {
+    setWarning(error.message);
+    return;
+  }
 
-    if (error) {
-      setWarning(error.message);
-      return;
-    }
+  const user = data.user;
 
-    const user = data.user;
+  // 🔹 IMPORTANT: sync role from membership BEFORE you read/insert roles
+  await refreshRole();
 
-    // Insert into users table if missing
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', user.id)
-      .single();
+  // Insert into users table if missing
+  const { data: existingUser } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', user.id)
+    .single();
 
-    if (!existingUser) {
-      await supabase.from('users').insert({ id: user.id, email: user.email });
-    }
+  if (!existingUser) {
+    await supabase.from('users').insert({ id: user.id, email: user.email });
+  }
 
-    // Assign 'user' role if no role exists
-    const { data: userRole } = await supabase
-      .from('user_roles')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
+  // Only assign 'user' if no role exists (do NOT overwrite 'member'/'admin')
+  const { data: userRole } = await supabase
+    .from('user_roles')
+    .select('role_id')
+    .eq('user_id', user.id)
+    .maybeSingle(); // safer than .single()
 
-    if (!userRole) {
-      const { data: role } = await supabase
-        .from('roles')
-        .select('id')
-        .eq('name', 'user')
-        .single();
-
-      if (role) {
-        await supabase.from('user_roles').insert({
-          user_id: user.id,
-          role_id: role.id,
-        });
-      }
-    }
-
-    // Check for profile
-    const { data: profile } = await supabase
-      .from('profiles')
+  if (!userRole) {
+    const { data: role } = await supabase
+      .from('roles')
       .select('id')
-      .eq('id', user.id)
+      .eq('name', 'user')
       .single();
 
-    if (!profile) {
-      router.push('/complete-profile');
-      return;
+    if (role) {
+      await supabase.from('user_roles').insert({
+        user_id: user.id,
+        role_id: role.id,
+      });
     }
+  }
 
-    // Redirect to role-based dashboard
-    router.push('/redirect');
-  };
+  // Check for profile
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (!profile) {
+    router.push('/complete-profile');
+    return;
+  }
+
+  // Redirect to role-based dashboard
+  router.push('/redirect');
+};
 
   const handleSignup = async () => {
     if (password.length < 12) {
@@ -114,6 +120,8 @@ export default function LoginPage() {
 
     setLoading(false);
   };
+
+  
 
   return (
     <div className="max-w-md mx-auto mt-20 p-6 bg-white rounded shadow-md font-body">
