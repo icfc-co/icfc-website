@@ -74,6 +74,15 @@ export default function SuperAdminDashboard() {
        <div className="mt-6">
           <ManageUserRoleButton/>
         </div>
+         <div className="mt-6">
+        <Link
+          href="/admin/members"
+          className="inline-flex items-center rounded-2xl px-5 py-3 font-medium shadow-md transition
+                     bg-[#006400] text-white hover:shadow-lg hover:opacity-90"
+        >
+          Members Directory
+        </Link>
+        </div>
        
     </div>
 

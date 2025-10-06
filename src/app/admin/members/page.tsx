@@ -3,15 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 
-// =============================
-// Admin Members Directory Page
-// =============================
-// Schema assumed from your screenshots:
-// - public.membership_members: id, household_id, name, email, phone, age, membership_type, created_at
-// - public.membership_households: id, primary_name, primary_email, primary_phone
-// FK: membership_members.household_id → membership_households.id
-// (constraint name: membership_members_household_id_fkey)
-
 export type Member = {
   id: string;
   household_id?: string | null;
@@ -20,6 +11,15 @@ export type Member = {
   phone?: string | null;
   age?: number | null;
   membership_type?: string | null; // youth | student | regular | senior
+  designation?:
+    | "head_of_household"
+    | "spouse"
+    | "father_or_father_in_law"
+    | "mother_or_mother_in_law"
+    | "son_or_son_in_law"
+    | "daughter_or_daughter_in_law"
+    | "other"
+    | null;
   created_at?: string | null;
   household?: {
     id: string;
@@ -38,7 +38,6 @@ function classNames(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
 }
 
-// ---- Age presets (tweak as needed)
 const AGE_PRESETS: { label: string; min?: number; max?: number }[] = [
   { label: "Under 13", max: 12 },
   { label: "13–17", min: 13, max: 17 },
@@ -48,15 +47,27 @@ const AGE_PRESETS: { label: string; min?: number; max?: number }[] = [
   { label: "60+", min: 61 },
 ];
 
-// ---- Member types (from membership_members.membership_type)
 const MEMBER_TYPES = [
   { key: "youth", label: "Youth" },
   { key: "student", label: "Student" },
   { key: "regular", label: "Regular" },
   { key: "senior", label: "Senior" },
 ] as const;
-
 type MemberTypeKey = (typeof MEMBER_TYPES)[number]["key"];
+
+// Human label for designation
+const designationLabel = (d?: Member["designation"]) =>
+  ({
+    head_of_household: "Head of Household",
+    spouse: "Spouse",
+    father_or_father_in_law: "Father / Father-in-Law",
+    mother_or_mother_in_law: "Mother / Mother-in-Law",
+    son_or_son_in_law: "Son / Son-in-Law",
+    daughter_or_daughter_in_law: "Daughter / Daughter-in-Law",
+    other: "Other",
+    null: "—",
+    undefined: "—",
+  } as Record<string, string>)[String(d)];
 
 export default function AdminMembersDirectory() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
@@ -91,18 +102,18 @@ export default function AdminMembersDirectory() {
         return;
       }
 
-      const { data, error } = await supabase.rpc('is_admin', { uid: user.id });
-
+      const { data, error } = await supabase.rpc("is_admin", { uid: user.id });
       if (error) {
-        console.error('is_admin error:', error);
+        console.error("is_admin error:", error);
         if (!cancelled) setIsAdmin(false);
         return;
       }
-
       if (!cancelled) setIsAdmin(Boolean(data));
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Active filter summary
@@ -124,18 +135,18 @@ export default function AdminMembersDirectory() {
       setLoading(true);
       setError(null);
       try {
-        const needsHHFilter = Boolean(primaryName.trim() || primaryEmail.trim());
-        const householdJoin = needsHHFilter ? "membership_households!inner" : "membership_households";
+        // Pin the relationship by FK name to avoid “more than one relationship was found”
+        const HH_REL = "membership_households!membership_members_household_id_fkey";
 
-        let query = supabase
-          .from("membership_members")
-          .select(
-            `id,name,email,phone,age,membership_type,household_id,created_at,
-             household:${householdJoin}(
-               id,primary_name,primary_email,primary_phone
-             )`,
-            { count: "exact" }
-          );
+        // We can keep it as a LEFT join for simplicity and still filter on the household fields
+        const selectCols = `
+          id,name,email,phone,age,membership_type,designation,household_id,created_at,
+          household:${HH_REL}(
+            id,primary_name,primary_email,primary_phone
+          )
+        `;
+
+        let query = supabase.from("membership_members").select(selectCols, { count: "exact" });
 
         // Filters
         if (ageMin != null) query = query.gte("age", ageMin);
@@ -164,6 +175,7 @@ export default function AdminMembersDirectory() {
         const to = from + pageSize - 1;
         const { data, error, count } = await query.range(from, to);
         if (error) throw error;
+
         setRows((data as any as Member[]) || []);
         setTotal(count || 0);
       } catch (e: any) {
@@ -214,6 +226,7 @@ export default function AdminMembersDirectory() {
       "Primary Name",
       "Primary Email",
       "Member Type",
+      "Designation",
       "Phone",
       "Created At",
     ];
@@ -226,6 +239,7 @@ export default function AdminMembersDirectory() {
         m.household?.primary_name || "",
         m.household?.primary_email || "",
         m.membership_type || "",
+        designationLabel(m.designation),
         m.phone || "",
         m.created_at || "",
       ]
@@ -248,7 +262,9 @@ export default function AdminMembersDirectory() {
   if (!isAdmin)
     return (
       <div className="p-6">
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">You don’t have permission to view this page.</div>
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
+          You don’t have permission to view this page.
+        </div>
       </div>
     );
 
@@ -383,6 +399,7 @@ export default function AdminMembersDirectory() {
               <th className="px-4 py-3">Primary Name</th>
               <th className="px-4 py-3">Primary Email</th>
               <th className="px-4 py-3">Member Type</th>
+              <th className="px-4 py-3">Designation</th>
               <th className="px-4 py-3">Phone</th>
               <th className="px-4 py-3">Joined</th>
             </tr>
@@ -390,17 +407,17 @@ export default function AdminMembersDirectory() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={9} className="px-4 py-6 text-center text-gray-500">Loading members…</td>
+                <td colSpan={10} className="px-4 py-6 text-center text-gray-500">Loading members…</td>
               </tr>
             )}
             {!loading && error && (
               <tr>
-                <td colSpan={9} className="px-4 py-6 text-center text-red-600">{error}</td>
+                <td colSpan={10} className="px-4 py-6 text-center text-red-600">{error}</td>
               </tr>
             )}
             {!loading && !error && rows.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-6 text-center text-gray-500">No members found.</td>
+                <td colSpan={10} className="px-4 py-6 text-center text-gray-500">No members found.</td>
               </tr>
             )}
             {!loading && !error &&
@@ -413,6 +430,7 @@ export default function AdminMembersDirectory() {
                   <td className="px-4 py-3">{m.household?.primary_name || "—"}</td>
                   <td className="px-4 py-3">{m.household?.primary_email || "—"}</td>
                   <td className="px-4 py-3 capitalize">{m.membership_type || "—"}</td>
+                  <td className="px-4 py-3">{designationLabel(m.designation)}</td>
                   <td className="px-4 py-3">{m.phone || "—"}</td>
                   <td className="px-4 py-3">{m.created_at ? new Date(m.created_at).toLocaleDateString() : "—"}</td>
                 </tr>

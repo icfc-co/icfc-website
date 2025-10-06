@@ -17,6 +17,31 @@ const isUuid = (v: any) =>
   typeof v === "string" &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 
+/* --- designation normalizer --------------------------------------- */
+type Designation =
+  | 'head_of_household'
+  | 'spouse'
+  | 'father_or_father_in_law'
+  | 'mother_or_mother_in_law'
+  | 'son_or_son_in_law'
+  | 'daughter_or_daughter_in_law'
+  | 'other';
+
+const normalizeDesignation = (raw: any, isPrimary: boolean): Designation => {
+  if (isPrimary) return 'head_of_household';
+  const val = String(raw || '').toLowerCase().trim();
+  const allowed: Designation[] = [
+    'head_of_household',
+    'spouse',
+    'father_or_father_in_law',
+    'mother_or_mother_in_law',
+    'son_or_son_in_law',
+    'daughter_or_daughter_in_law',
+    'other',
+  ];
+  return (allowed as string[]).includes(val) ? (val as Designation) : 'other';
+};
+
 /* ------------------------------ route ------------------------------ */
 export async function POST(req: Request) {
   // 0) ENV
@@ -152,15 +177,44 @@ export async function POST(req: Request) {
           const recurrence    = (meta.recurrence ?? "yearly") as "one_time" | "yearly";
           const renewal_of    = meta.renewal_of_household_id || null;
 
+          // ---- parse and normalize members (accept verbose or compact) ----
           let members: Array<{
             name: string;
             age: number;
             sex?: "male" | "female";
-            phone?: string;
-            email?: string;
+            phone?: string | null;
+            email?: string | null;
             membership_type: "student" | "senior" | "regular" | "youth";
+            designation?: Designation;
           }> = [];
           try { members = JSON.parse(members_json); } catch { members = []; }
+
+          if (Array.isArray(members) && members.length) {
+            members = members.map((m: any) => {
+              if (m && (m.n !== undefined || m.mt !== undefined || m.dg !== undefined)) {
+                // compact → verbose
+                return {
+                  name: String(m.n ?? "").trim(),
+                  age: Number(m.a ?? 0),
+                  sex: (m.sx as "male" | "female" | undefined),
+                  email: m.em ? String(m.em).toLowerCase().trim() : null,
+                  phone: m.ph ?? null,
+                  membership_type: (m.mt ?? "regular") as "student" | "senior" | "regular" | "youth",
+                  designation: m.dg as Designation | undefined,
+                };
+              }
+              // already verbose
+              return {
+                name: String(m?.name ?? "").trim(),
+                age: Number(m?.age ?? 0),
+                sex: m?.sex as "male" | "female" | undefined,
+                email: m?.email ? String(m.email).toLowerCase().trim() : null,
+                phone: m?.phone ?? null,
+                membership_type: (m?.membership_type ?? "regular") as "student" | "senior" | "regular" | "youth",
+                designation: m?.designation as Designation | undefined,
+              };
+            });
+          }
 
           // compute new period
           let start_date = todayISO();
@@ -170,7 +224,7 @@ export async function POST(req: Request) {
           const uniqMembers: typeof members = [];
           const seen = new Set<string>();
           for (const m of members) {
-            const key = `${m.name.trim().toLowerCase()}|${(m.email || "").trim().toLowerCase()}`;
+            const key = `${(m.name || "").trim().toLowerCase()}|${(m.email || "").trim().toLowerCase()}`;
             if (!seen.has(key)) { seen.add(key); uniqMembers.push(m); }
           }
 
@@ -214,15 +268,16 @@ export async function POST(req: Request) {
             }
 
             if (uniqMembers.length) {
-              const rows = uniqMembers.map((m) => ({
+              const rows = uniqMembers.map((m, idx) => ({
                 household_id,
                 name: m.name,
                 age: m.age,
                 phone: m.phone || null,
-                email: (m.email?.toLowerCase() || null),
+                email: (m.email || null),
                 sex: m.sex || null,
                 membership_type: m.membership_type,
                 price_cents: amountFor(m.membership_type, m.age),
+                designation: normalizeDesignation(m.designation, idx === 0),
               }));
               const ins = await admin.from("membership_members").insert(rows);
               if (ins.error && String(ins.error.code) !== "23505") {
@@ -272,15 +327,16 @@ export async function POST(req: Request) {
 
             // insert members snapshot
             if (uniqMembers.length) {
-              const rows = uniqMembers.map((m) => ({
+              const rows = uniqMembers.map((m, idx) => ({
                 household_id,
                 name: m.name,
                 age: m.age,
                 phone: m.phone || null,
-                email: (m.email?.toLowerCase() || null),
+                email: (m.email || null),
                 sex: m.sex || null,
                 membership_type: m.membership_type,
                 price_cents: amountFor(m.membership_type, m.age),
+                designation: normalizeDesignation(m.designation, idx === 0),
               }));
               const mem = await admin.from("membership_members").insert(rows);
               if (mem.error && String(mem.error.code) !== "23505") {
@@ -292,7 +348,7 @@ export async function POST(req: Request) {
             // eligibility for auto-role at future login
             const emails = new Set<string>();
             if (primary_email) emails.add(primary_email);
-            for (const m of uniqMembers) if (m.email) emails.add(m.email.toLowerCase());
+            for (const m of uniqMembers) if (m.email) emails.add((m.email || "").toLowerCase());
             if (emails.size) {
               const eligRows = Array.from(emails).map((email) => ({ email, household_id, active: true }));
               const insElig = await admin.from("member_eligibility").insert(eligRows);
