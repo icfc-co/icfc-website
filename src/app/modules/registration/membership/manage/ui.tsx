@@ -32,18 +32,22 @@ export default function ManageMembershipClient({ userId, household, members }: a
   };
 
   const onRenew = async () => {
-    setBusy(true);
-    try {
-      const res = await fetch('/api/membership/renew', { method: 'POST' });
-      const json = await res.json();
-      if (res.ok && json?.url) window.location.href = json.url;
-      else alert(json?.error || 'Failed to start renewal');
-    } catch (e: any) {
-      alert(e?.message || 'Network error');
-    } finally {
-      setBusy(false);
+  setBusy(true);
+  try {
+    const res = await fetch('/api/membership/renew', { method: 'POST' }); // ✅ fixed endpoint
+    const json = await res.json();
+    if (res.ok && json?.url) {
+      window.location.href = json.url; // redirect to Stripe Checkout
+    } else {
+      alert(json?.error || 'Failed to start renewal');
     }
-  };
+  } catch (e: any) {
+    alert(e?.message || 'Network error');
+  } finally {
+    setBusy(false);
+  }
+};
+
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-6">

@@ -1,3 +1,4 @@
+// app/modules/registration/membership/manage/page.tsx
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import ManageMembershipClient from './ui';
@@ -23,7 +24,8 @@ export default async function ManageMembershipPage() {
     return <div className="max-w-3xl mx-auto p-6">Please log in to manage your membership.</div>;
   }
 
-  const { data: household } = await supabase
+  // Try by user_id first; if none, fall back to primary_email
+  let { data: household, error: hhErr } = await supabase
     .from('membership_households')
     .select('*')
     .eq('user_id', user.id)
@@ -31,9 +33,24 @@ export default async function ManageMembershipPage() {
     .limit(1)
     .maybeSingle();
 
+  if (!household && user.email) {
+    const { data: hhByEmail } = await supabase
+      .from('membership_households')
+      .select('*')
+      // ilike for case-insensitive match; trim just in case
+      .ilike('primary_email', user.email.trim())
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    household = hhByEmail || null;
+  }
+
   let members: any[] = [];
   if (household?.id) {
-    const { data: mems } = await supabase.from('membership_members').select('*').eq('household_id', household.id);
+    const { data: mems } = await supabase
+      .from('membership_members')
+      .select('*')
+      .eq('household_id', household.id);
     members = mems || [];
   }
 
