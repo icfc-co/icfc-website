@@ -131,13 +131,12 @@ export async function POST(req: Request) {
         const fund = (meta.fund ?? "membership").toLowerCase();
         const isMembership = fund === "membership";
 
-        // 🔐 Accept only a real UUID for user_id; otherwise store null
-        const rawUserId =
-          meta.supabase_user_id || meta.user_id || meta.userId || undefined;
-        const user_id = isUuid(rawUserId) ? (rawUserId as string) : null;
+        // prefer user_id from our stored payload; but accept a valid UUID from metadata
+        const rawUserId = meta.user_id || meta.supabase_user_id || undefined;
+        const metaUserId = isUuid(rawUserId) ? (rawUserId as string) : null;
 
         await log("checkout_session_meta", "webhook", {
-          fund, isMembership, rawUserId, accepted_user_id: Boolean(user_id), mode: s.mode, payment_status: s.payment_status,
+          fund, isMembership, metaUserId, mode: s.mode, payment_status: s.payment_status,
         });
 
         const customerId = (s.customer as string) ?? null;
@@ -169,61 +168,92 @@ export async function POST(req: Request) {
             return row.amount_cents ?? 0;
           };
 
-          // payload from your membership checkout route
-          const primary_name  = meta.primary_name || "";
-          const primary_email = (meta.primary_email || "").trim().toLowerCase();
-          const primary_phone = meta.primary_phone || "";
-          const members_json  = meta.members_json || "[]";
-          const recurrence    = (meta.recurrence ?? "yearly") as "one_time" | "yearly";
-          const renewal_of    = meta.renewal_of_household_id || null;
-
-          // ---- parse and normalize members (accept verbose or compact) ----
-          let members: Array<{
-            name: string;
-            age: number;
-            sex?: "male" | "female";
-            phone?: string | null;
-            email?: string | null;
+          /* ---- NEW: fetch stored payload by payload_id (tiny metadata) ---- */
+          let primary_name = "";
+          let primary_email: string | null = null;
+          let primary_phone: string | null = null;
+          let recurrence: "one_time" | "yearly" = "yearly";
+          let user_id: string | null = metaUserId;
+          let storedMembers: Array<{
+            name: string; age: number; sex?: "male" | "female";
+            phone?: string | null; email?: string | null;
             membership_type: "student" | "senior" | "regular" | "youth";
             designation?: Designation;
           }> = [];
-          try { members = JSON.parse(members_json); } catch { members = []; }
+          let total_cents_from_client: number | undefined;
 
-          if (Array.isArray(members) && members.length) {
-            members = members.map((m: any) => {
-              if (m && (m.n !== undefined || m.mt !== undefined || m.dg !== undefined)) {
-                // compact → verbose
-                return {
-                  name: String(m.n ?? "").trim(),
-                  age: Number(m.a ?? 0),
-                  sex: (m.sx as "male" | "female" | undefined),
-                  email: m.em ? String(m.em).toLowerCase().trim() : null,
-                  phone: m.ph ?? null,
-                  membership_type: (m.mt ?? "regular") as "student" | "senior" | "regular" | "youth",
-                  designation: m.dg as Designation | undefined,
-                };
-              }
-              // already verbose
-              return {
+          const payloadId = meta.payload_id;
+          if (payloadId) {
+            const { data: stored, error: storedErr } = await admin
+              .from("membership_checkout_payloads")
+              .select("payload, user_id")
+              .eq("id", payloadId)
+              .maybeSingle();
+
+            if (storedErr) {
+              await log("payload_fetch_failed", "webhook", { payload_id: payloadId }, storedErr.message);
+            } else if (stored?.payload) {
+              const p = stored.payload as any;
+              primary_name  = p?.primary?.name || p?.members?.[0]?.name || "";
+              primary_email = (p?.primary?.email || p?.members?.[0]?.email || null)?.toLowerCase() || null;
+              primary_phone = p?.primary?.phone || p?.members?.[0]?.phone || null;
+              recurrence    = (p?.recurrence === "one_time" ? "one_time" : "yearly");
+              total_cents_from_client = p?.total_cents;
+              user_id = isUuid(p?.user_id) ? p.user_id : user_id;
+
+              // normalize stored members
+              const src = Array.isArray(p?.members) ? p.members : [];
+              storedMembers = src.map((m: any, idx: number) => ({
                 name: String(m?.name ?? "").trim(),
                 age: Number(m?.age ?? 0),
-                sex: m?.sex as "male" | "female" | undefined,
+                sex: (m?.sex as "male" | "female" | undefined),
                 email: m?.email ? String(m.email).toLowerCase().trim() : null,
                 phone: m?.phone ?? null,
                 membership_type: (m?.membership_type ?? "regular") as "student" | "senior" | "regular" | "youth",
-                designation: m?.designation as Designation | undefined,
-              };
-            });
+                designation: normalizeDesignation(m?.designation, idx === 0),
+              }));
+            }
+          }
+
+          /* ---- LEGACY FALLBACK (if payload_id missing): members_json metadata ---- */
+          if (!storedMembers.length) {
+            const members_json  = meta.members_json || "[]";
+            const primaryNameMeta  = meta.primary_name || "";
+            const primaryEmailMeta = (meta.primary_email || "").trim().toLowerCase();
+            const primaryPhoneMeta = meta.primary_phone || "";
+            const recurrenceMeta   = (meta.recurrence ?? "yearly") as "one_time" | "yearly";
+
+            primary_name = primaryNameMeta;
+            primary_email = primaryEmailMeta || null;
+            primary_phone = primaryPhoneMeta || null;
+            recurrence = recurrenceMeta;
+
+            try {
+              const parsed = JSON.parse(members_json);
+              if (Array.isArray(parsed)) {
+                storedMembers = parsed.map((m: any, idx: number) => ({
+                  name: String(m?.name ?? m?.n ?? "").trim(),
+                  age: Number(m?.age ?? m?.a ?? 0),
+                  sex: (m?.sex ?? m?.sx) as "male" | "female" | undefined,
+                  email: (m?.email ?? m?.em ?? null) ? String(m?.email ?? m?.em).toLowerCase().trim() : null,
+                  phone: m?.phone ?? m?.ph ?? null,
+                  membership_type: (m?.membership_type ?? m?.mt ?? "regular") as "student" | "senior" | "regular" | "youth",
+                  designation: normalizeDesignation(m?.designation ?? m?.dg, idx === 0),
+                }));
+              }
+            } catch {
+              storedMembers = [];
+            }
           }
 
           // compute new period
           let start_date = todayISO();
           let end_date   = plusOneYearISO(start_date);
 
-          // dedupe members client snapshot before insert (name/email)
-          const uniqMembers: typeof members = [];
+          // dedupe members snapshot before insert (name/email)
+          const uniqMembers: typeof storedMembers = [];
           const seen = new Set<string>();
-          for (const m of members) {
+          for (const m of storedMembers) {
             const key = `${(m.name || "").trim().toLowerCase()}|${(m.email || "").trim().toLowerCase()}`;
             if (!seen.has(key)) { seen.add(key); uniqMembers.push(m); }
           }
@@ -231,135 +261,66 @@ export async function POST(req: Request) {
           // === Household handling ===
           let household_id: string;
 
-          if (renewal_of) {
-            // RENEWAL: extend same household window
-            const { data: existing, error: exErr } = await admin
-              .from("membership_households")
-              .select("id, end_date")
-              .eq("id", renewal_of)
-              .maybeSingle();
-            if (exErr || !existing) {
-              await log("renewal_household_not_found", "webhook", { renewal_of }, exErr?.message);
-              return NextResponse.json({ received: true });
-            }
+          // FIRST-TIME or RENEWAL: we’re treating both as (re)creating the window for now
+          const tryInsert = await admin
+            .from("membership_households")
+            .insert({
+              user_id: user_id, // UUID or null
+              primary_name,
+              primary_email,
+              primary_phone,
+              recurrence: "yearly",
+              status: "active",
+              start_date,
+              end_date,
+              stripe_customer_id: customerId,
+            })
+            .select("id")
+            .single();
 
-            const currentEnd = existing.end_date || start_date;
-            const startFrom  = (new Date(currentEnd) > new Date(start_date)) ? currentEnd : start_date;
-            const endTo      = plusOneYearISO(startFrom);
-
-            const { error: upErr } = await admin
-              .from("membership_households")
-              .update({ status: "active", start_date: startFrom, end_date: endTo })
-              .eq("id", renewal_of);
-            if (upErr) {
-              await log("household_update_failed", "webhook", { renewal_of }, upErr.message);
-              throw upErr;
-            }
-
-            household_id = renewal_of;
-            start_date   = startFrom;
-            end_date     = endTo;
-
-            // refresh members snapshot (delete+insert)
-            const del = await admin.from("membership_members").delete().eq("household_id", household_id);
-            if (del.error) {
-              await log("members_delete_failed", "webhook", { household_id }, del.error.message);
-              throw del.error;
-            }
-
-            if (uniqMembers.length) {
-              const rows = uniqMembers.map((m, idx) => ({
-                household_id,
-                name: m.name,
-                age: m.age,
-                phone: m.phone || null,
-                email: (m.email || null),
-                sex: m.sex || null,
-                membership_type: m.membership_type,
-                price_cents: amountFor(m.membership_type, m.age),
-                designation: normalizeDesignation(m.designation, idx === 0),
-              }));
-              const ins = await admin.from("membership_members").insert(rows);
-              if (ins.error && String(ins.error.code) !== "23505") {
-                await log("members_insert_failed", "webhook", { household_id }, ins.error.message);
-                throw ins.error;
-              }
-            }
-          } else {
-            // FIRST-TIME: create or reuse existing household for same period+email
-            const tryInsert = await admin
-              .from("membership_households")
-              .insert({
-                user_id: user_id, // ✅ UUID or null
-                primary_name,
-                primary_email,
-                primary_phone,
-                recurrence: "yearly",
-                status: "active",
-                start_date,
-                end_date,
-                stripe_customer_id: customerId,
-              })
-              .select("id")
-              .single();
-
-            if (tryInsert.error) {
-              if (String(tryInsert.error.code) === "23505") {
-                const sel = await admin
-                  .from("membership_households")
-                  .select("id")
-                  .eq("start_date", start_date)
-                  .eq("end_date", end_date)
-                  .ilike("primary_email", primary_email || "")
-                  .maybeSingle();
-                if (sel.error || !sel.data) {
-                  await log("household_conflict_lookup_failed", "webhook", { primary_email, start_date, end_date }, sel.error?.message);
-                  throw tryInsert.error;
-                }
-                household_id = sel.data.id;
-              } else {
-                await log("household_insert_failed", "webhook", { primary_email }, tryInsert.error.message);
+          if (tryInsert.error) {
+            if (String(tryInsert.error.code) === "23505") {
+              const sel = await admin
+                .from("membership_households")
+                .select("id")
+                .eq("start_date", start_date)
+                .eq("end_date", end_date)
+                .ilike("primary_email", primary_email || "")
+                .maybeSingle();
+              if (sel.error || !sel.data) {
+                await log("household_conflict_lookup_failed", "webhook", { primary_email, start_date, end_date }, sel.error?.message);
                 throw tryInsert.error;
               }
+              household_id = sel.data.id;
             } else {
-              household_id = tryInsert.data.id;
+              await log("household_insert_failed", "webhook", { primary_email }, tryInsert.error.message);
+              throw tryInsert.error;
             }
+          } else {
+            household_id = tryInsert.data.id;
+          }
 
-            // insert members snapshot
-            if (uniqMembers.length) {
-              const rows = uniqMembers.map((m, idx) => ({
-                household_id,
-                name: m.name,
-                age: m.age,
-                phone: m.phone || null,
-                email: (m.email || null),
-                sex: m.sex || null,
-                membership_type: m.membership_type,
-                price_cents: amountFor(m.membership_type, m.age),
-                designation: normalizeDesignation(m.designation, idx === 0),
-              }));
-              const mem = await admin.from("membership_members").insert(rows);
-              if (mem.error && String(mem.error.code) !== "23505") {
-                await log("members_insert_failed", "webhook", { household_id }, mem.error.message);
-                throw mem.error;
-              }
-            }
-
-            // eligibility for auto-role at future login
-            const emails = new Set<string>();
-            if (primary_email) emails.add(primary_email);
-            for (const m of uniqMembers) if (m.email) emails.add((m.email || "").toLowerCase());
-            if (emails.size) {
-              const eligRows = Array.from(emails).map((email) => ({ email, household_id, active: true }));
-              const insElig = await admin.from("member_eligibility").insert(eligRows);
-              if (insElig.error && String(insElig.error.code) !== "23505") {
-                await log("eligibility_upsert_failed", "webhook", { household_id }, insElig.error.message);
-                throw insElig.error;
-              }
+          // insert members snapshot
+          if (uniqMembers.length) {
+            const rows = uniqMembers.map((m, idx) => ({
+              household_id,
+              name: m.name,
+              age: m.age,
+              phone: m.phone || null,
+              email: (m.email || null),
+              sex: m.sex || null,
+              membership_type: m.membership_type,
+              price_cents: amountFor(m.membership_type, m.age),
+              designation: normalizeDesignation(m.designation, idx === 0),
+            }));
+            const mem = await admin.from("membership_members").insert(rows);
+            if (mem.error && String(mem.error.code) !== "23505") {
+              await log("members_insert_failed", "webhook", { household_id }, mem.error.message);
+              throw mem.error;
             }
           }
 
-          // authoritative total from snapshot
+          // authoritative total from snapshot (ignore client-reported total)
           const { data: snap, error: snapErr } = await admin
             .from("membership_members")
             .select("price_cents")
@@ -421,7 +382,7 @@ export async function POST(req: Request) {
             note,
             donor_name: donorName,
             donor_email: donorEmail,
-            user_id: user_id, // ✅ UUID or null
+            user_id: metaUserId, // UUID or null
             stripe_payment_intent_id: payment_intent_id,
             stripe_checkout_session_id: checkout_session_id,
             stripe_customer_id: customerId,
@@ -502,7 +463,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ received: true });
   } catch (e: any) {
-    await log("handler_failed", "webhook", { type: event?.type }, e?.message);
+    await log("handler_failed", "webhook", { type: (event as any)?.type }, e?.message);
     return NextResponse.json({ error: e?.message || "Webhook error" }, { status: 500 });
   }
 }

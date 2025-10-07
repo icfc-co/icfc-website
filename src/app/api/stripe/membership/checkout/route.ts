@@ -1,8 +1,7 @@
 // src/app/api/stripe/membership/checkout/route.ts
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -51,39 +50,35 @@ const normalizeDesignation = (raw: any, isPrimary: boolean): Designation => {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+
     const primary = body?.primary as { name: string; email?: string; phone?: string } | null;
     const members = (body?.members as Member[]) || [];
     const recurrence: Recurrence = (body?.recurrence as Recurrence) || 'one_time';
+    const user_id = (body?.user_id as string | undefined) || undefined; // optional, may be undefined for guests
 
     if (!members.length || !members[0]?.name) {
       return NextResponse.json({ error: 'Primary member missing.' }, { status: 400 });
     }
 
-    // Supabase client (for auth + pricing read)
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
+    // Supabase admin client (service role) – required because guests can checkout
+    const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get: (k) => cookieStore.get(k)?.value,
-          set: (k, v, o) => cookieStore.set(k, v, o),
-          remove: (k, o) => cookieStore.set(k, '', { ...o, maxAge: 0 }),
-        },
-      }
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
-    const { data: { user } } = await supabase.auth.getUser();
 
     // Load active pricing
-    const { data: pricing, error: priceErr } = await supabase
+    const { data: pricing, error: priceErr } = await supabaseAdmin
       .from('membership_pricing')
       .select('type, amount_cents, min_age, max_age')
       .eq('is_active', true);
 
     if (priceErr || !pricing?.length) {
+      console.error('Pricing fetch error:', priceErr);
       return NextResponse.json({ error: 'Pricing not available' }, { status: 500 });
     }
-    const priceMap = Object.fromEntries(pricing.map((p: any) => [p.type, p]));
+    const priceMap: Record<string, any> = Object.fromEntries(
+      pricing.map((p: any) => [p.type, p])
+    );
 
     const amountFor = (t: MemberType, age: number) => {
       const row = priceMap[t];
@@ -95,17 +90,17 @@ export async function POST(req: Request) {
       return row.amount_cents;
     };
 
-    // URLs
+    // Build absolute URLs (works on prod and localhost)
     const envBase = (process.env.NEXT_PUBLIC_SITE_URL || '').trim();
     const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? 'localhost:3000';
     const proto = req.headers.get('x-forwarded-proto') ?? (host.includes('localhost') ? 'http' : 'https');
     const base = /^https?:\/\//i.test(envBase) ? envBase : `${proto}://${host}`;
+
     const success_url =
       new URL('/modules/registration/membership/thanks', base).toString() +
       '?session_id={CHECKOUT_SESSION_ID}';
     const cancel_url = new URL('/modules/registration/membership?canceled=1', base).toString();
 
-    // Recurring means yearly
     const isRecurring = recurrence === 'yearly';
 
     // Normalize members (names, emails, designation)
@@ -119,7 +114,7 @@ export async function POST(req: Request) {
       designation: normalizeDesignation(m.designation, i === 0),
     }));
 
-    // Build Stripe line items; skip $0
+    // Stripe line items (skip $0)
     const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
     for (let i = 0; i < normalizedMembers.length; i++) {
       const m = normalizedMembers[i];
@@ -131,7 +126,8 @@ export async function POST(req: Request) {
           currency: 'usd',
           product_data: {
             name: `Membership — ${m.name} (${m.membership_type})`,
-            metadata: { index: String(i), designation: m.designation! },
+            // keep product metadata tiny (Stripe 500-char value limit)
+            metadata: { idx: String(i), desig: m.designation! },
           },
           unit_amount: unit,
           ...(isRecurring ? { recurring: { interval: 'year' as const } } : {}),
@@ -140,27 +136,52 @@ export async function POST(req: Request) {
       });
     }
 
-    const totalCents = normalizedMembers.reduce(
+    const total_cents = normalizedMembers.reduce(
       (s, m) => s + amountFor(m.membership_type, m.age),
       0
     );
 
-    // IMPORTANT: send VERBOSE members_json for webhook compatibility
+    // Persist the *full* payload to Supabase; Stripe metadata only receives a tiny reference
+    const payloadToStore = {
+      primary,
+      members: normalizedMembers,
+      recurrence,
+      total_cents,
+      // optionally include any ui/context info you need later:
+      user_id: user_id ?? null,
+      origin: base,
+    };
+
+    const { data: inserted, error: insertErr } = await supabaseAdmin
+      .from('membership_checkout_payloads')
+      .insert({ user_id: user_id ?? null, payload: payloadToStore })
+      .select('id')
+      .single();
+
+    if (insertErr || !inserted) {
+      console.error('Payload insert error:', insertErr);
+      return NextResponse.json({ error: 'Failed to persist checkout payload.' }, { status: 500 });
+    }
+
+    const payloadId = inserted.id as string;
+    const primaryEmail = primary?.email || normalizedMembers[0]?.email || undefined;
+    const primaryName = primary?.name || normalizedMembers[0]?.name || '';
+
+    // Create Stripe Checkout Session with *small* metadata
     const session = await stripe.checkout.sessions.create({
       mode: isRecurring ? 'subscription' : 'payment',
       success_url,
       cancel_url,
-      customer_email: primary?.email || normalizedMembers[0]?.email || undefined,
+      customer_email: primaryEmail,
       line_items,
       metadata: {
         fund: 'membership',
-        user_id: user?.id ?? '',
-        primary_name: normalizedMembers[0]?.name || '',
-        primary_email: normalizedMembers[0]?.email || '',
-        primary_phone: normalizedMembers[0]?.phone || '',
+        payload_id: payloadId,               // short reference to DB
+        user_id: user_id ?? '',              // optional
         recurrence,
-        members_json: JSON.stringify(normalizedMembers),
-        total_cents: String(totalCents),
+        members_count: String(normalizedMembers.length),
+        total_cents: String(total_cents),
+        primary_name: primaryName.substring(0, 80), // keep values short
       },
     });
 
