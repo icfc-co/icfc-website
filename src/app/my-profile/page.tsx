@@ -328,7 +328,7 @@ export default function ViewProfilePage() {
       <div className="flex flex-col space-y-3">
         <button
           className="bg-primary text-white px-4 py-2 rounded hover:bg-green-800 disabled:opacity-50"
-          onClick={() => router.push('/registration/membership')}
+          onClick={() => router.push('/registration/membership/manage')}
           disabled={!isComplete}
           title={!isComplete ? 'Complete your profile to continue' : undefined}
         >
