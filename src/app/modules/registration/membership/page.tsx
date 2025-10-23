@@ -142,7 +142,7 @@ export default function MembershipStartPage() {
       const ageNum = Number(m.age);
 
       if (!m.name.trim()) return `Member #${idx}: Full name is required.`;
-      if (!ageNum || ageNum < 0) return `Member #${idx}: Please enter a valid age.`;
+      //if (!ageNum || ageNum < 0) return `Member #${idx}: Please enter a valid age.`;
       if (!m.sex) return `Member #${idx}: Please select sex.`;
       if (!m.email.trim()) return `Member #${idx}: Email is required.`;
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(m.email.trim()))
@@ -321,7 +321,7 @@ export default function MembershipStartPage() {
                       {/* Age */}
                       <div className="md:col-span-2">
                         <label className="text-sm font-medium text-gray-700">
-                          Age <Req />
+                          Age
                         </label>
                         <input
                           className="mt-1 w-full rounded-lg border p-2 outline-none focus:ring-2 focus:ring-emerald-600"
@@ -329,7 +329,7 @@ export default function MembershipStartPage() {
                           type="number"
                           min={0}
                           value={m.age}
-                          required
+                          
                           onChange={(e) =>
                             setMembers((s) => s.map((x, idx) => (idx === i ? { ...x, age: e.target.value as any } : x)))
                           }

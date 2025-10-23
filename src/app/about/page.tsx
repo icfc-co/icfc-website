@@ -13,7 +13,7 @@ export default function AboutPage() {
           About ICFC
         </h1>
         <p className="mt-4 max-w-3xl text-lg leading-7 text-neutral-700">
-          ICFC is a non-profit, tax-exempt organization (Tax-ID: 74-222324) registered under IRS code 501(c)(3) for
+          ICFC is a non-profit, tax-exempt organization registered under IRS code 501(c)(3) for
           educational, religious, and social purposes. Its activities align with Quranic teachings and the
           traditions of Prophet Mohammed (Peace Be upon Him).
         </p>
