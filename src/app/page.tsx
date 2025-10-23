@@ -113,9 +113,15 @@ export default function HomePage() {
         </div>
       </div>
       <div className="flex flex-wrap justify-center gap-4 mb-8">
+      <span className="mt-2 inline-block text-sm font-medium"  style={{ color: GREEN }}>
+              Your Voice. Your Masjid. Your Future
+            </span>
+            </div>
+
+      <div className="flex flex-wrap justify-center gap-4 mb-8">
   <a
     href="/modules/registration/membership"
-    className="bg-primary hover:bg-green-800 font-body text-white px-6 py-2 rounded-2xl shadow transition"
+    className="bg-secondary hover:bg-green-600 font-body text-black px-6 py-2 rounded-2xl shadow transition"
   >
     Become A Member
   </a>
