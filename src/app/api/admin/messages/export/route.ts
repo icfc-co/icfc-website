@@ -29,7 +29,7 @@ export async function GET(req: Request) {
 
     let query = eadmin
       .from('contact_messages')
-      .select('created_at, name, email, reason, subject, status, notes')
+      .select('created_at, name, email, reason, subject, status, message, notes')
       .order('created_at', { ascending: false });
 
     if (reason) query = query.eq('reason', reason);
@@ -41,7 +41,7 @@ export async function GET(req: Request) {
     const { data, error } = await query.limit(5000);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    const header = ['created_at','name','email','reason','subject','status','notes'];
+    const header = ['created_at','name','email','reason','subject','status', 'message','notes'];
     const rows = [header.join(',')].concat(
       (data || []).map(r => header.map(h => csvEscape((r as any)[h])).join(','))
     );

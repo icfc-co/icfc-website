@@ -28,7 +28,7 @@ export async function GET(req: Request) {
 
     let query = admin
       .from('contact_messages')
-      .select('id, created_at, name, email, reason, subject, status, notes', { count: 'exact' })
+      .select('id, created_at, name, email, reason, subject, status, message, notes', { count: 'exact' })
       .order('created_at', { ascending: false });
 
     if (reason) query = query.eq('reason', reason);

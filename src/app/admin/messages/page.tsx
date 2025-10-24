@@ -158,6 +158,7 @@ export default function AdminMessagesPage() {
                   <th className="px-3 py-2 text-left">Name</th>
                   <th className="px-3 py-2 text-left">Email</th>
                   <th className="px-3 py-2 text-left">Reason</th>
+                  <th className="px-3 py-2 text-left">Message</th>
                   <th className="px-3 py-2 text-left">Status</th>
                   <th className="px-3 py-2 text-left">Notes</th>
                 </tr>
@@ -169,6 +170,9 @@ export default function AdminMessagesPage() {
                     <td className="px-3 py-2">{row.name}</td>
                     <td className="px-3 py-2"><a className="underline" href={'mailto:' + row.email}>{row.email}</a></td>
                     <td className="px-3 py-2">{row.reason}</td>
+                    <td className="px-3 py-2">
+                      <textarea value={row.message} readOnly />
+                    </td>
                     <td className="px-3 py-2">
                       <select
                         value={row.status}
