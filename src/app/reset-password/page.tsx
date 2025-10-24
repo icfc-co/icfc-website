@@ -4,7 +4,6 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
-// ❗ prevent static prerender
 export const dynamic = 'force-dynamic';
 
 export default function ResetPasswordPage() {
@@ -28,15 +27,12 @@ function ResetPasswordInner() {
   useEffect(() => {
     (async () => {
       const urlErr = search.get('error');
-      if (urlErr) {
-        setMsg(decodeURIComponent(urlErr));
-        setStage('error');
-        return;
-      }
+      if (urlErr) { setMsg(decodeURIComponent(urlErr)); setStage('error'); return; }
+
       try {
         const code = search.get('code');
         if (code) await supabase.auth.exchangeCodeForSession(code);
-        else await supabase.auth.exchangeCodeForSession(); // fallback for hash style
+        else await supabase.auth.exchangeCodeForSession(); // hash-style fallback
         setStage('set');
       } catch (e: any) {
         setMsg(e?.message || 'Email link is invalid or has expired.');
@@ -50,42 +46,44 @@ function ResetPasswordInner() {
     e.preventDefault();
     setMsg('');
 
-    if (newPassword.length < 12) return setMsg('Password must be at least 12 characters long.');
-    if (newPassword !== confirmPassword) return setMsg('Passwords do not match.');
+    if (newPassword.length < 12) { setMsg('Password must be at least 12 characters long.'); return; }
+    if (newPassword !== confirmPassword) { setMsg('Passwords do not match.'); return; }
 
     setSaving(true);
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     setSaving(false);
 
     if (error) {
+      // ❗ stay on the form so user can try again
       setMsg(error.message);
-      setStage('error');
-    } else {
-      setStage('done');
-      setTimeout(() => router.replace('/login'), 1800);
+      setStage('set');            // <— keep the form visible
+      setNewPassword('');
+      setConfirmPassword('');
+      return;
     }
+
+    setStage('done');
+    setTimeout(() => router.replace('/login'), 1800);
   };
 
-  if (stage === 'error') {
-    return <div className="max-w-md mx-auto mt-20 mb-16 p-8 bg-white shadow rounded text-center text-red-600">
-      Error: {msg}
-    </div>;
-  }
-
-  if (stage === 'done') {
-    return <div className="max-w-md mx-auto mt-20 mb-16 p-8 bg-white shadow rounded text-center text-green-700">
+  if (stage === 'verifying') return <div className="text-center mt-20 text-lg font-medium">Verifying token…</div>;
+  if (stage === 'error') return (
+    <div className="max-w-md mx-auto mt-20 mb-16 p-8 bg-white shadow rounded text-center">
+      <p className="text-red-600 mb-4">Error: {msg}</p>
+      <a href="/forgot-password" className="text-primary underline">Send a new reset link</a>
+    </div>
+  );
+  if (stage === 'done') return (
+    <div className="max-w-md mx-auto mt-20 mb-16 p-8 bg-white shadow rounded text-center text-green-700">
       ✅ Password changed successfully! Redirecting to login...
-    </div>;
-  }
-
-  if (stage === 'verifying') {
-    return <div className="text-center mt-20 text-lg font-medium">Verifying token…</div>;
-  }
+    </div>
+  );
 
   // stage === 'set'
   return (
     <div className="max-w-md mx-auto mt-20 mb-16 p-8 bg-white shadow-md rounded">
-      <h1 className="text-2xl font-bold mb-6 text-center text-green-800">Set a New Password</h1>
+      <h1 className="text-2xl font-bold mb-4 text-center text-green-800">Set a New Password</h1>
+      {msg && <p className="text-red-600 text-sm text-center mb-3">{msg}</p>}
       <form onSubmit={handleUpdatePassword} className="space-y-4">
         <input
           type="password"
@@ -94,6 +92,7 @@ function ResetPasswordInner() {
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
           minLength={12}
+          autoFocus
           required
         />
         <input
@@ -104,7 +103,6 @@ function ResetPasswordInner() {
           onChange={(e) => setConfirmPassword(e.target.value)}
           required
         />
-        {msg && <p className="text-red-600 text-sm">{msg}</p>}
         <button
           type="submit"
           className="w-full bg-green-800 hover:bg-green-900 text-white py-2 rounded transition disabled:opacity-60"
