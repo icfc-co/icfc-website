@@ -1,10 +1,21 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
+// ❗ prevent static prerender
+export const dynamic = 'force-dynamic';
+
 export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<div className="text-center mt-20 text-lg">Verifying token…</div>}>
+      <ResetPasswordInner />
+    </Suspense>
+  );
+}
+
+function ResetPasswordInner() {
   const search = useSearchParams();
   const router = useRouter();
 
@@ -16,23 +27,16 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     (async () => {
-      // If Supabase appended an error param (e.g., otp_expired)
       const urlErr = search.get('error');
       if (urlErr) {
         setMsg(decodeURIComponent(urlErr));
         setStage('error');
         return;
       }
-
       try {
-        // New flow: `?code=...`
         const code = search.get('code');
-        if (code) {
-          await supabase.auth.exchangeCodeForSession(code);
-        } else {
-          // Fallback: hash-based recovery or implicit exchange
-          await supabase.auth.exchangeCodeForSession();
-        }
+        if (code) await supabase.auth.exchangeCodeForSession(code);
+        else await supabase.auth.exchangeCodeForSession(); // fallback for hash style
         setStage('set');
       } catch (e: any) {
         setMsg(e?.message || 'Email link is invalid or has expired.');
@@ -46,16 +50,8 @@ export default function ResetPasswordPage() {
     e.preventDefault();
     setMsg('');
 
-    if (newPassword.length < 12) {
-      setMsg('Password must be at least 12 characters long.');
-      setStage('set');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setMsg('Passwords do not match.');
-      setStage('set');
-      return;
-    }
+    if (newPassword.length < 12) return setMsg('Password must be at least 12 characters long.');
+    if (newPassword !== confirmPassword) return setMsg('Passwords do not match.');
 
     setSaving(true);
     const { error } = await supabase.auth.updateUser({ password: newPassword });
@@ -70,10 +66,6 @@ export default function ResetPasswordPage() {
     }
   };
 
-  if (stage === 'verifying') {
-    return <div className="text-center mt-20 text-lg font-medium">Verifying token...</div>;
-  }
-
   if (stage === 'error') {
     return <div className="max-w-md mx-auto mt-20 mb-16 p-8 bg-white shadow rounded text-center text-red-600">
       Error: {msg}
@@ -86,11 +78,14 @@ export default function ResetPasswordPage() {
     </div>;
   }
 
+  if (stage === 'verifying') {
+    return <div className="text-center mt-20 text-lg font-medium">Verifying token…</div>;
+  }
+
   // stage === 'set'
   return (
     <div className="max-w-md mx-auto mt-20 mb-16 p-8 bg-white shadow-md rounded">
       <h1 className="text-2xl font-bold mb-6 text-center text-green-800">Set a New Password</h1>
-
       <form onSubmit={handleUpdatePassword} className="space-y-4">
         <input
           type="password"
