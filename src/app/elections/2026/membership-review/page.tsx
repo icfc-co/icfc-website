@@ -105,6 +105,12 @@ export default async function Page() {
         <h2 className="text-2xl font-semibold text-[#FFE27A] mb-2 text-center">
           Membership List to Review - Review Window: {reviewWindow}
         </h2>
+        <p className="text-center text-gray-200 mt-8 max-w-3xl leading-relaxed">
+  If you are a <span className="font-semibold text-[#FFD700]">registered member</span> and do not see your name in the list, 
+  please reach out to <a href="mailto:elections@icfc.org" className="underline hover:text-[#FFE27A]">elections@icfc.org</a> 
+  {" "}or contact any member of the <span className="font-semibold">Election Committee</span>.
+</p>
+
 
         {error ? (
           <div className="bg-red-600/20 border border-red-500 rounded-xl p-4 text-red-200 mb-4">
