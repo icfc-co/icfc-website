@@ -10,14 +10,14 @@ export default function Elections2026Landing() {
 
       <p className="text-lg max-w-2xl mb-10">
         The membership registration period has ended.  
-        The review and nomination process for the ICFC Elections 2026 has now started.
+        The review process for the ICFC Elections 2026 has now started.
       </p>
 
       <Link
         href="/elections/2026/membership-review"
         className="bg-[#FFD700] text-[#0a4b1a] px-8 py-4 rounded-2xl text-lg font-semibold shadow-md hover:bg-[#ffeb7a] transition-all"
       >
-        Review Membership List & File Nominations
+        Review Membership List
       </Link>
 
       <p className="text-sm text-gray-300 mt-8">

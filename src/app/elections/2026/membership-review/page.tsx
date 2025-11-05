@@ -100,20 +100,6 @@ export default async function Page() {
         Membership registration ended on <b>{regClosedOn}</b>. The <b>review process</b> has now started.
       </p>
 
-      <div className="bg-[#14532d] w-full max-w-3xl p-6 rounded-2xl shadow-lg text-center mb-8">
-        <h2 className="text-2xl font-semibold text-[#FFE27A] mb-2">Nomination Form</h2>
-        <p className="mb-4">
-          File nominations for <b>President</b> and <b>3 Board Members</b>. Only registered members may submit.
-        </p>
-        <a
-          href={nominationFormUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-block bg-[#FFD700] text-[#0a4b1a] px-6 py-3 rounded-xl font-bold hover:opacity-90"
-        >
-          Open Nomination Form
-        </a>
-      </div>
 
       <div className="bg-[#14532d] w-full max-w-6xl p-6 rounded-2xl shadow-lg overflow-x-auto">
         <h2 className="text-2xl font-semibold text-[#FFE27A] mb-2 text-center">
