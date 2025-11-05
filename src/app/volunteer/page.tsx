@@ -6,5 +6,9 @@ export default function VolunteerDashboard() {
       <h1 className="text-2xl font-bold">Welcome, Volunteer</h1>
       <p>This is the Volunteer dashboard.</p>
     </div>
+
+    <div className="mt-4">
+        <AdminMessagesButton />
+       </div>
   );
 }

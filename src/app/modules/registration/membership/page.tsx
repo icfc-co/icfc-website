@@ -13,13 +13,6 @@ export default function Elections2026Landing() {
         The review process for the ICFC Elections 2026 has now started.
       </p>
 
-      <Link
-        href="/elections/2026/membership-review"
-        className="bg-[#FFD700] text-[#0a4b1a] px-8 py-4 rounded-2xl text-lg font-semibold shadow-md hover:bg-[#ffeb7a] transition-all"
-      >
-        Review Membership List
-      </Link>
-
       <p className="text-sm text-gray-300 mt-8">
         Islamic Center of Fort Collins – Elections 2026
       </p>
