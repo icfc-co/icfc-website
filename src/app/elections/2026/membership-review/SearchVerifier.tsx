@@ -92,7 +92,6 @@ export default function SearchVerifier() {
             <thead>
               <tr className="bg-[#166534] text-[#FFE27A]">
                 <th className="px-4 py-2 border border-[#185a2f]">Name</th>
-                <th className="px-4 py-2 border border-[#185a2f]">Head of Household</th>
                 <th className="px-4 py-2 border border-[#185a2f]">Eligible to Vote</th>
                 <th className="px-4 py-2 border border-[#185a2f]">Reason (if Not Eligible)</th>
               </tr>
@@ -104,9 +103,6 @@ export default function SearchVerifier() {
                   className={i % 2 === 0 ? "bg-[#0f3f1b]" : "bg-[#14532d]"}
                 >
                   <td className="px-4 py-2 border border-[#185a2f]">{r.name}</td>
-                  <td className="px-4 py-2 border border-[#185a2f]">
-                    {r.headOfHousehold ? "Yes" : "No"}
-                  </td>
                   <td
                     className={`px-4 py-2 border border-[#185a2f] font-bold ${
                       r.eligibleToVote ? "text-green-300" : "text-red-300"
