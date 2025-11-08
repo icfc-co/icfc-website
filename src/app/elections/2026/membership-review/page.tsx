@@ -31,16 +31,6 @@ export default async function Page() {
 
         <SearchVerifier />
 
-        <div className="mt-8 text-center">
-          <a
-            href={nominationFormUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-block bg-[#FFD700] text-[#0a4b1a] px-6 py-3 rounded-xl font-bold hover:bg-[#ffeb7a]"
-          >
-            File Nomination Form
-          </a>
-        </div>
       </div>
     </div>
   );
