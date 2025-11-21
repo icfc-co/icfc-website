@@ -7,7 +7,7 @@ import { Noto_Naskh_Arabic } from "next/font/google";
 export const metadata = {
   title: "ICFC Masjid",
   icons: {
-    icon: "/favicon.ico",
+    icon: "/favicon-2.ico",
     shortcut: "/favicon.png",
     apple: "/apple-touch-icon.png",
   },
