@@ -6,6 +6,11 @@ import { Noto_Naskh_Arabic } from "next/font/google";
 
 export const metadata = {
   title: "ICFC Masjid",
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.png",
+    apple: "/apple-touch-icon.png",
+  },
   description: "Islamic Center of Fort Collins – Official Website",
 };
 
