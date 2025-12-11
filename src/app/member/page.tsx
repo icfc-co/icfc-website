@@ -6,7 +6,7 @@ export default function MemberDashboard() {
   return (
     <section className="px-4 py-6">
       <h1 className="text-2xl font-bold">Welcome, Member</h1>
-      <p>This is the Member dashboard.</p>
+      <p>This is your Member dashboard.</p>
 
       <div className="mt-6">
         <Link
