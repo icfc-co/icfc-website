@@ -12,10 +12,10 @@ export default function VolunteerDashboard() {
       <p>This is your Volunteer dashboard.</p>
     
 
-    <div className="mt-4">
+      <div className="mt-4">
         <AdminMessagesButton />
        </div>
-       </div>
+       
        <div className="mt-6">
           <SocialServiceManagerButton />
        </div>
