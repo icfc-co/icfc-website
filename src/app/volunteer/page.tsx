@@ -14,5 +14,11 @@ export default function VolunteerDashboard() {
         <AdminMessagesButton />
        </div>
        </div>
+       <div className="mt-6">
+          <SocialServiceManagerButton />
+       </div>
+       <div className="mt-6">
+          <PhotoManagerButton />
+       </div>
   );
 }
