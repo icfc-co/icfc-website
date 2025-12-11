@@ -336,7 +336,7 @@ export default function MembershipStartPage() {
                         />
                       </div>
 
-                      {/* Sex */}
+                      {/* Gender */}
                       <div className="md:col-span-2">
                         <label className="text-sm font-medium text-gray-700">
                           Sex <Req />
