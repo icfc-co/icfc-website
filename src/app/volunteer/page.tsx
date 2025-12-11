@@ -1,6 +1,8 @@
 'use client';
 
 import AdminMessagesButton from '@/components/admin/AdminMessagesButton';
+import PhotoManagerButton from '@/components/admin/PhotoManagerButton';
+import SocialServiceManagerButton from '@/components/admin/SocialServiceManagerButton';
 
 
 export default function VolunteerDashboard() {
