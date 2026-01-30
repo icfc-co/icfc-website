@@ -95,12 +95,14 @@ export default function GalleryCarousel({ album = "About" }: { album?: string })
         >
           {photos.map((p) => (
             <div key={p.id} className="w-full shrink-0">
-              <img
-                src={p.url}
-                alt="ICFC photo"
-                className="block w-full h-420 md:h-[840px] object-cover"
-                loading="lazy"
-              />
+              <div className="w-full bg-white flex items-center justify-center">
+                <img
+                  src={p.url}
+                  alt="ICFC photo"
+                  className="block w-full max-h-[520px] md:max-h-[740px] object-contain"
+                  loading="lazy"
+                />
+              </div>
             </div>
           ))}
         </div>
