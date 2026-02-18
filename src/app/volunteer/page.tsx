@@ -3,6 +3,7 @@
 import AdminMessagesButton from '@/components/admin/AdminMessagesButton';
 import PhotoManagerButton from '@/components/admin/PhotoManagerButton';
 import SocialServiceManagerButton from '@/components/admin/SocialServiceManagerButton';
+import RamadanVolunteersButton from '@/components/admin/RamadanVolunteersButton';
 
 
 export default function VolunteerDashboard() {
@@ -21,6 +22,10 @@ export default function VolunteerDashboard() {
        </div>
        <div className="mt-6">
           <PhotoManagerButton />
+       </div>
+
+       <div className="mt-6">
+          <RamadanVolunteersButton href="/volunteer/ramadan-volunteers" />
        </div>
      </div>
   );

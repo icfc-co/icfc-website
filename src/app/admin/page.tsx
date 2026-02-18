@@ -8,6 +8,7 @@ import AdminMessagesButton from '@/components/admin/AdminMessagesButton';
 import PhotoManagerButton from '@/components/admin/PhotoManagerButton';
 import DonationsManagerButton from '@/components/admin/DonationsManagerButton';
 import SocialServiceManagerButton from '@/components/admin/SocialServiceManagerButton';
+import RamadanVolunteersButton from '@/components/admin/RamadanVolunteersButton';
 
 export default function AdminDashboard() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
@@ -74,6 +75,10 @@ export default function AdminDashboard() {
         >
           Members Directory
         </Link>
+        </div>
+
+        <div className="mt-6">
+          <RamadanVolunteersButton href="/admin/ramadan-volunteers" />
         </div>
     </div>
   );

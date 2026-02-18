@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { s3ImageService } from '../app/services/s3ImageService';
 import GalleryCarousel from "@/components/gallery/GalleryCarousel";
 import Link from 'next/link';
-
+import RamadanPromoSection from "@/components/home/RamadanPromoSection";
 
 const GREEN = "#006400";
     const GOLD  = "#FFD700";
@@ -50,6 +50,8 @@ export default function HomePage() {
   return (
     <>
       {/* Hero Banner */}
+      
+<RamadanPromoSection />
       <section className="relative bg-white">
       {/* soft brand gradient backdrop */}
       <div
@@ -126,6 +128,7 @@ export default function HomePage() {
     Become A Member
   </a>
 </div>
+
 
     </section>
       <section className="relative text-center h-[100vh] overflow-hidden">

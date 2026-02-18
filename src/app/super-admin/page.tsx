@@ -9,6 +9,7 @@ import PhotoManagerButton from '@/components/admin/PhotoManagerButton';
 import DonationsManagerButton from '@/components/admin/DonationsManagerButton';
 import SocialServiceManagerButton from '@/components/admin/SocialServiceManagerButton';
 import ManageUserRoleButton from '@/components/admin/ManageUserRoleButton';
+import RamadanVolunteersButton from '@/components/admin/RamadanVolunteersButton';
 
 export default function SuperAdminDashboard() {
   const [loading, setLoading] = useState(true);
@@ -82,6 +83,10 @@ export default function SuperAdminDashboard() {
         >
           Members Directory
         </Link>
+        </div>
+
+        <div className="mt-6">
+          <RamadanVolunteersButton href="/super-admin/ramadan-volunteers" />
         </div>
        
     </div>
