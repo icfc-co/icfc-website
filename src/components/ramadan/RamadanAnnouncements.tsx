@@ -44,7 +44,7 @@ const POSTERS: Poster[] = [
     title: "Masjid Cup",
     category: "Youth",
     date: "Ramadan 2026",
-    image: "/ramadan/announcements/masjidCup.jpeg",
+    image: "/ramadan/announcements/MasjidCup.jpeg",
     desc: "Join us for the annual Masjid Cup tournament. Exciting matches and community fun await!",
   },
   {
@@ -76,7 +76,7 @@ const POSTERS: Poster[] = [
     title: "Reverts Guide",
     date: "February 14, 2026",
     category: "General",
-    image: "/ramadan/announcements/revertsGuide.jpeg",
+    image: "/ramadan/announcements/RevertsGuide.jpeg",
     desc: "Guide for new reverts during Ramadan. Learn about our programs and activities.",
   },
 ];
