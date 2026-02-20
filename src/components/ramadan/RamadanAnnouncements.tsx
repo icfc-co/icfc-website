@@ -79,6 +79,14 @@ const POSTERS: Poster[] = [
     image: "/ramadan/announcements/RevertsGuide.jpeg",
     desc: "Guide for new reverts during Ramadan. Learn about our programs and activities.",
   },
+  {
+    id: "revert-iftar",
+    title: "Revert Iftar Potluck",
+    date: "February 22, 2026",
+    category: "Iftar",
+    image: "/ramadan/announcements/revertIftar.jpeg",
+    desc: "Enjoy beutiful evening with fellow reverts. Join us for iftar and community support during Ramadan.",
+  },
 ];
 
 export default function RamadanAnnouncements() {

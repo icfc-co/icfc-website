@@ -131,12 +131,13 @@ export default function HomePage() {
 
 
     </section>
-      <section className="relative text-center h-[100vh] overflow-hidden">
+      <section className="relative text-center h-[120vh] overflow-hidden">
         {/* Background image with parallax effect */}
         <div
           className="absolute inset-0 bg-no-repeat bg-cover bg-center will-change-transform"
           style={{
-            backgroundImage: welcomeUrl ? `url(${welcomeUrl})` : undefined,
+            //backgroundImage: welcomeUrl ? `url(${welcomeUrl})` : undefined,
+            backgroundImage: `url(/images/WelcomeICFC.JPG)`,
             backgroundAttachment: 'fixed', // enables parallax
           }}
         >
