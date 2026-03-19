@@ -59,6 +59,92 @@ export default function HomePage() {
       {/* Eid Poster Popup */}
       {showPoster && <EidPosterPopup onClose={handleClosePoster} />}
 
+      {/* Eid Mubarak Compact Notification Banner */}
+<section className="w-full flex justify-center bg-gradient-to-r from-green-50 via-white to-emerald-50 py-4 px-4 border-b border-green-200">
+  <div className="relative w-full max-w-5xl overflow-hidden rounded-2xl border border-green-200 bg-white shadow-lg">
+    {/* soft decorative background */}
+    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,215,0,0.12),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(22,163,74,0.12),transparent_30%)]" />
+    
+    <div className="relative grid grid-cols-1 lg:grid-cols-[1.1fr_1.3fr_0.9fr] gap-4 px-5 py-4 md:px-6 md:py-5">
+      
+      {/* Left: Main Eid info */}
+      <div className="flex flex-col justify-center">
+        <div className="inline-flex items-center gap-2 self-start rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800 border border-green-200 mb-2">
+          <span className="h-2 w-2 rounded-full bg-yellow-500" />
+          Special Eid Announcement
+        </div>
+
+        <h2 className="flex items-center gap-2 text-2xl md:text-3xl font-extrabold text-green-800 leading-tight">
+          Eid Mubarak!
+        </h2>
+
+        <p className="mt-1 text-sm md:text-base font-semibold text-green-700">
+          Eid al-Fitr 2026 / 1447
+        </p>
+
+        <div className="mt-3 flex flex-wrap gap-2 text-sm">
+          <span className="rounded-full bg-green-50 px-3 py-1.5 border border-green-200 font-semibold text-green-900">
+            Friday, March 20
+          </span>
+          <span className="rounded-full bg-yellow-50 px-3 py-1.5 border border-yellow-200 font-semibold text-yellow-800">
+            ICFC Main Hall
+          </span>
+        </div>
+      </div>
+
+      {/* Center: Important timings */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="rounded-xl border border-green-200 bg-gradient-to-br from-green-50 to-white p-3">
+          <div className="text-sm font-bold text-green-900 mb-2">Eid Prayers</div>
+          <div className="space-y-1.5 text-sm text-green-900 leading-6">
+            <div>
+              1st Prayer: <span className="font-bold">7:30 AM</span>
+              <span className="text-gray-600"> — Dr. Omar Reda</span>
+            </div>
+            <div>
+              2nd Prayer: <span className="font-bold">9:00 AM</span>
+              <span className="text-gray-600"> — Dr. Khaled Ksaibati</span>
+            </div>
+          </div>
+          <div className="mt-2 rounded-lg bg-yellow-50 px-2.5 py-2 text-xs font-medium text-yellow-800 border border-yellow-200">
+            Potluck breakfast after <span className="font-bold">2nd prayer only</span>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-green-200 bg-gradient-to-br from-emerald-50 to-white p-3">
+          <div className="text-sm font-bold text-green-900 mb-2">Friday & Celebration</div>
+          <div className="space-y-1.5 text-sm text-green-900 leading-6">
+            <div>
+              1st Khutbah: <span className="font-bold">Safwan</span>
+              <br />
+              <span className="text-gray-600"> @ 12:10</span>
+            </div>
+            <br />
+            <div>
+              2nd Khutbah: <span className="font-bold">Tariq</span>
+              <br />
+              <span className="text-gray-600"> @ 1:10</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right: celebration then greeting */}
+      <div className="flex flex-col items-center justify-center lg:justify-end gap-2">
+        <div className="rounded-xl bg-green-200 border border-green-300 px-4 py-2 text-green-900 text-xs md:text-sm font-semibold shadow max-w-xs w-full text-center lg:text-left">
+          ICFC Eid Celebration: <br /><span className="font-bold">03/28</span> 
+          <span className="text-gray-700">from 10 am to 6 pm</span>
+        </div>
+        <div className="rounded-2xl bg-gradient-to-br from-green-800 to-green-700 px-4 py-4 text-center lg:text-left shadow-md max-w-xs w-full">
+          <p className="text-sm md:text-[15px] italic leading-6 text-green-50">
+            May the blessings of Eid bring happiness, peace, and barakah to you and your family.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
       {/* Hero Banner */}
       <RamadanPromoSection />
       <section className="relative bg-white">

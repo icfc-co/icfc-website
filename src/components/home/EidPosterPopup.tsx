@@ -22,14 +22,14 @@ const EidPosterPopup: React.FC<EidPosterPopupProps> = ({ onClose }) => {
           alt="Eid Prayer Poster"
           className="w-full h-auto rounded mb-4"
         />
-        <div className="text-center">
+        {/* <div className="text-center">
           <h2 className="text-xl font-bold mb-2">Eid Prayer Timings</h2>
           <p className="mb-1">Eid al-Fitr 2026</p>
           <p className="mb-1">Date: March 20, 2026</p>
           <p className="mb-1">First Prayer: 7:30 AM</p>
           <p className="mb-1">Second Prayer: 9:00 AM</p>
           <p className="mb-1">Location: ICFC Main Hall</p>
-        </div>
+        </div> */}
       </div>
     </div>
   );
