@@ -115,13 +115,13 @@ export default function HomePage() {
           <div className="text-sm font-bold text-green-900 mb-2">Friday & Celebration</div>
           <div className="space-y-1.5 text-sm text-green-900 leading-6">
             <div>
-              1st Khutbah: <span className="font-bold">Safwan</span>
+              1st Khutbah: <span className="font-bold">Br. Safwan</span>
               <br />
               <span className="text-gray-600"> @ 12:10</span>
             </div>
             <br />
             <div>
-              2nd Khutbah: <span className="font-bold">Tariq</span>
+              2nd Khutbah: <span className="font-bold">Br. Tariq</span>
               <br />
               <span className="text-gray-600"> @ 1:10</span>
             </div>
