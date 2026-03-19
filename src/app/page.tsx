@@ -112,7 +112,7 @@ export default function HomePage() {
         </div>
 
         <div className="rounded-xl border border-green-200 bg-gradient-to-br from-emerald-50 to-white p-3">
-          <div className="text-sm font-bold text-green-900 mb-2">Friday & Celebration</div>
+          <div className="text-sm font-bold text-green-900 mb-2">Friday Prayers</div>
           <div className="space-y-1.5 text-sm text-green-900 leading-6">
             <div>
               1st Khutbah: <span className="font-bold">Br. Safwan</span>
@@ -132,7 +132,7 @@ export default function HomePage() {
       {/* Right: celebration then greeting */}
       <div className="flex flex-col items-center justify-center lg:justify-end gap-2">
         <div className="rounded-xl bg-green-200 border border-green-300 px-4 py-2 text-green-900 text-xs md:text-sm font-semibold shadow max-w-xs w-full text-center lg:text-left">
-          ICFC Eid Celebration: <br /><span className="font-bold">03/28</span> 
+          ICFC Eid Celebration: <br /><span className="font-bold">03/28 </span> 
           <span className="text-gray-700">from 10 am to 6 pm</span>
         </div>
         <div className="rounded-2xl bg-gradient-to-br from-green-800 to-green-700 px-4 py-4 text-center lg:text-left shadow-md max-w-xs w-full">
