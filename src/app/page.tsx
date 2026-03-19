@@ -6,6 +6,7 @@ import { s3ImageService } from '../app/services/s3ImageService';
 import GalleryCarousel from "@/components/gallery/GalleryCarousel";
 import Link from 'next/link';
 import RamadanPromoSection from "@/components/home/RamadanPromoSection";
+import EidPosterPopup from "@/components/home/EidPosterPopup";
 
 const GREEN = "#006400";
     const GOLD  = "#FFD700";
@@ -29,6 +30,12 @@ const GREEN = "#006400";
     ];
 
 export default function HomePage() {
+  // Eid Poster Popup logic: always show on page load
+  const [showPoster, setShowPoster] = useState(true);
+
+  const handleClosePoster = () => {
+    setShowPoster(false);
+  };
 
   const [welcomeUrl, setWelcomeUrl] = useState<string | null>(null);
   const ayah = useMemo(() => AYAT[0], []);
@@ -49,9 +56,11 @@ export default function HomePage() {
 
   return (
     <>
+      {/* Eid Poster Popup */}
+      {showPoster && <EidPosterPopup onClose={handleClosePoster} />}
+
       {/* Hero Banner */}
-      
-<RamadanPromoSection />
+      <RamadanPromoSection />
       <section className="relative bg-white">
       {/* soft brand gradient backdrop */}
       <div
