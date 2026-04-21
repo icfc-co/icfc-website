@@ -56,7 +56,6 @@ export default function HomePage() {
 
   return (
     <>
-      
 
       {/* Hero Banner */}
       {/* <RamadanPromoSection /> */}
