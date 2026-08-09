@@ -20,7 +20,7 @@ async function safeJson(res: Response): Promise<CheckoutResponse | null> {
   }
 }
 
-export default function FundraiserPage() {
+export default function ExpansionPage() {
   const [amount, setAmount] = useState<number | ''>('');
   const [recurrence, setRecurrence] = useState<Recurrence>('one_time');
   const [donorName, setDonorName] = useState('');
@@ -40,7 +40,7 @@ export default function FundraiserPage() {
 
     setSubmitting(true);
     try {
-      const res = await fetch('/api/stripe/fundraiser-checkout', {
+      const res = await fetch('/api/stripe/expansion-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amountCents, recurrence, donorName, donorEmail }),
@@ -76,7 +76,7 @@ export default function FundraiserPage() {
         <div className="grid gap-8 lg:grid-cols-2 lg:gap-10">
           <div className="rounded-3xl border border-[#d6ccb7] bg-white/80 p-7 shadow-[0_18px_45px_rgba(20,33,40,0.15)] backdrop-blur">
             <p className="font-[Montserrat] text-sm font-semibold uppercase tracking-[0.2em] text-[#8f6f24]">
-              ICFC Fundraiser
+              ICFC Expansion
             </p>
             <h1 className="mt-3 font-[Bebas_Neue] text-5xl leading-[0.95] text-[#0f3f2d] sm:text-6xl">
               Build the Masjid Expansion Together

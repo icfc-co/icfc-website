@@ -4,16 +4,16 @@ import Stripe from 'stripe';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-type FundraiserCheckoutBody = {
+type ExpansionCheckoutBody = {
   amountCents?: number;
   donorName?: string;
   donorEmail?: string;
   recurrence?: 'one_time' | 'monthly';
 };
 
-function asBody(value: unknown): FundraiserCheckoutBody {
+function asBody(value: unknown): ExpansionCheckoutBody {
   if (!value || typeof value !== 'object') return {};
-  return value as FundraiserCheckoutBody;
+  return value as ExpansionCheckoutBody;
 }
 
 function isLocalHost(host: string) {
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
   const base = /^https?:\/\//i.test(envBase) ? envBase : `${proto}://${host}`;
 
   const successUrl = new URL('/donate/success', base).toString();
-  const cancelUrl = new URL('/fundraiser?canceled=1', base).toString();
+  const cancelUrl = new URL('/expansion?canceled=1', base).toString();
 
   const stripe = new Stripe(stripeSecret, { apiVersion: '2024-06-20' });
 
@@ -89,7 +89,7 @@ export async function POST(req: Request) {
         {
           price_data: {
             currency: 'usd',
-            product_data: { name: 'ICFC Masjid Expansion Fundraiser' },
+            product_data: { name: 'ICFC Masjid Expansion' },
             unit_amount: Math.round(amountCents),
           },
           quantity: 1,
@@ -98,11 +98,11 @@ export async function POST(req: Request) {
       customer_email: donorEmail || undefined,
       metadata: {
         fund: 'masjid_expansion',
-        campaign: 'fundraiser_page',
+        campaign: 'expansion_page',
         recurrence,
         donorName,
         donorEmail,
-        note: 'Masjid expansion fundraiser donation',
+        note: 'Masjid expansion donation',
       },
     });
 
