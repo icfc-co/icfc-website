@@ -9,6 +9,7 @@ type ExpansionCheckoutBody = {
   donorName?: string;
   donorEmail?: string;
   recurrence?: 'one_time' | 'monthly';
+  tierName?: string;
 };
 
 function asBody(value: unknown): ExpansionCheckoutBody {
@@ -27,6 +28,16 @@ function pickStripeSecret(host: string) {
 
   if (isLocalHost(host)) return test || primary;
   return live || primary;
+}
+
+function normalizeRecurrence(value: unknown): 'one_time' | 'monthly' {
+  return value === 'monthly' ? 'monthly' : 'one_time';
+}
+
+function twelveMonthsFromNowUnix(): number {
+  const d = new Date();
+  d.setUTCMonth(d.getUTCMonth() + 12);
+  return Math.floor(d.getTime() / 1000);
 }
 
 export async function POST(req: Request) {
@@ -79,10 +90,18 @@ export async function POST(req: Request) {
 
     const donorName = String(body.donorName ?? '').trim();
     const donorEmail = String(body.donorEmail ?? '').trim();
-    const recurrence = String(body.recurrence ?? 'one_time');
+    const recurrence = normalizeRecurrence(body.recurrence);
+    const tierName = String(body.tierName ?? '').trim();
+    const isRecurring = recurrence === 'monthly';
+
+    // Recurring gifts run for 12 monthly payments, then auto-cancel.
+    // Checkout Sessions don't accept subscription_data.cancel_at directly, so we
+    // stash the target timestamp in metadata and apply it via the webhook once
+    // the subscription actually exists.
+    const cancelAt = twelveMonthsFromNowUnix();
 
     const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
+      mode: isRecurring ? 'subscription' : 'payment',
       success_url: successUrl,
       cancel_url: cancelUrl,
       line_items: [
@@ -91,15 +110,29 @@ export async function POST(req: Request) {
             currency: 'usd',
             product_data: { name: 'ICFC Masjid Expansion' },
             unit_amount: Math.round(amountCents),
+            ...(isRecurring ? { recurring: { interval: 'month' as const } } : {}),
           },
           quantity: 1,
         },
       ],
+      ...(isRecurring
+        ? {
+            subscription_data: {
+              metadata: {
+                fund: 'masjid_expansion',
+                campaign: 'expansion_page',
+                tierName,
+                cancel_at: String(cancelAt),
+              },
+            },
+          }
+        : {}),
       customer_email: donorEmail || undefined,
       metadata: {
         fund: 'masjid_expansion',
         campaign: 'expansion_page',
         recurrence,
+        tierName,
         donorName,
         donorEmail,
         note: 'Masjid expansion donation',

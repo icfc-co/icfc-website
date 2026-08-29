@@ -28,6 +28,20 @@ function SuccessInner() {
         >
           Make another donation
         </Link>
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+          <Link
+            href="/"
+            className="inline-block rounded-2xl border border-white/30 px-5 py-2 text-white transition hover:bg-white/10"
+          >
+            Home
+          </Link>
+          <Link
+            href="/expansion"
+            className="inline-block rounded-2xl border border-white/30 px-5 py-2 text-white transition hover:bg-white/10"
+          >
+            Expansion
+          </Link>
+        </div>
       </div>
     </main>
   );

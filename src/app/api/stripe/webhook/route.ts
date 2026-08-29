@@ -396,6 +396,22 @@ export async function POST(req: Request) {
           throw d.error;
         }
         await log("donation_upsert_ok", "webhook", { checkout_session_id });
+
+        // Recurring expansion gifts: apply the 12-month auto-cancel now that the
+        // subscription exists (Checkout Sessions can't set cancel_at up front).
+        if (fund === "masjid_expansion" && s.mode === "subscription" && typeof s.subscription === "string") {
+          try {
+            const sub = await stripe.subscriptions.retrieve(s.subscription);
+            const cancelAtRaw = sub.metadata?.cancel_at;
+            const cancelAt = cancelAtRaw ? Number(cancelAtRaw) : NaN;
+            if (Number.isFinite(cancelAt) && cancelAt > Math.floor(Date.now() / 1000)) {
+              await stripe.subscriptions.update(s.subscription, { cancel_at: cancelAt });
+              await log("expansion_subscription_cancel_at_set", "webhook", { subscription_id: s.subscription, cancelAt });
+            }
+          } catch (subErr: any) {
+            await log("expansion_subscription_cancel_at_failed", "webhook", { subscription_id: s.subscription }, subErr?.message);
+          }
+        }
         break;
       }
 
