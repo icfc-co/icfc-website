@@ -134,6 +134,12 @@ export default function HomePage() {
   >
     Become A Member
   </a>
+  <a
+    href="/modules/community/utilities-pledge"
+    className="bg-secondary hover:bg-green-600 font-body text-black px-6 py-2 rounded-2xl shadow transition"
+  >
+    Utility Pledge
+  </a>
 </div>
 
 
