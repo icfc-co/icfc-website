@@ -95,6 +95,7 @@ export default function UtilitiesPledgePage() {
 							</div>
 						</div>
 
+
 						<div className="grid gap-4 sm:grid-cols-3">
 							{utilityItems.map((item) => {
 								const Icon = item.icon;
