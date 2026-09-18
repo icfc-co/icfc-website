@@ -135,18 +135,6 @@ export default function UtilitiesPledgePage() {
 							minutes to let us know how you would like to help.
 						</p>
 					</div>
-
-					<div className="overflow-hidden border border-stone-200 bg-white shadow-md">
-						<iframe
-							src={`${formUrl}&embedded=true`}
-							title="ICFC Utility Donation Pledge form"
-							className="h-[980px] w-full"
-							loading="lazy"
-						>
-							Loading pledge form...
-						</iframe>
-					</div>
-
 					<div className="mt-6 flex flex-col items-center gap-3 text-center">
 						<p className="text-sm text-stone-600">
 							Having trouble viewing the embedded form?
@@ -160,7 +148,20 @@ export default function UtilitiesPledgePage() {
 							Open the form in a new tab
 							<ArrowTopRightOnSquareIcon className="h-5 w-5" aria-hidden="true" />
 						</a>
+						<br />
 					</div>
+
+					<div className="overflow-hidden border border-stone-200 bg-white shadow-md">
+						<iframe
+							src={`${formUrl}&embedded=true`}
+							title="ICFC Utility Donation Pledge form"
+							className="h-[980px] w-full"
+							loading="lazy"
+						>
+							Loading pledge form...
+						</iframe>
+					</div>
+
 				</div>
 			</section>
 		</main>
