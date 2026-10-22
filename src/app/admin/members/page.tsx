@@ -55,6 +55,9 @@ const MEMBER_TYPES = [
 ] as const;
 type MemberTypeKey = (typeof MEMBER_TYPES)[number]["key"];
 
+// Members re-purchase each season; by default only show this season's purchases
+const SEASON_START = "2026-09-01";
+
 // Human label for designation
 const designationLabel = (d?: Member["designation"]) =>
   ({
@@ -81,6 +84,7 @@ export default function AdminMembersDirectory() {
   const [selectedMemberTypes, setSelectedMemberTypes] = useState<MemberTypeKey[]>([]);
   const [primaryName, setPrimaryName] = useState("");
   const [primaryEmail, setPrimaryEmail] = useState("");
+  const [purchasedFrom, setPurchasedFrom] = useState(SEASON_START); // YYYY-MM-DD, "" = all
 
   // Data & paging
   const [rows, setRows] = useState<Member[]>([]);
@@ -124,8 +128,9 @@ export default function AdminMembersDirectory() {
     if (primaryName.trim()) bits.push(`Primary name: “${primaryName.trim()}”`);
     if (primaryEmail.trim()) bits.push(`Primary email: “${primaryEmail.trim()}”`);
     if (search.trim()) bits.push(`Search: “${search.trim()}”`);
+    if (purchasedFrom) bits.push(`Purchased on/after ${purchasedFrom}`);
     return bits.join(" · ");
-  }, [ageMin, ageMax, search, selectedMemberTypes, primaryName, primaryEmail]);
+  }, [ageMin, ageMax, search, selectedMemberTypes, primaryName, primaryEmail, purchasedFrom]);
 
   // Fetch list when filters/page change
   useEffect(() => {
@@ -151,6 +156,13 @@ export default function AdminMembersDirectory() {
         // Filters
         if (ageMin != null) query = query.gte("age", ageMin);
         if (ageMax != null) query = query.lte("age", ageMax);
+
+        // Member rows are inserted at checkout (new or renewal), so created_at = purchase time.
+        // Use local midnight of the chosen day.
+        if (purchasedFrom) {
+          const [y, mo, d] = purchasedFrom.split("-").map(Number);
+          query = query.gte("created_at", new Date(y, mo - 1, d).toISOString());
+        }
 
         const s = search.trim();
         if (s) {
@@ -187,7 +199,7 @@ export default function AdminMembersDirectory() {
     };
 
     run();
-  }, [isAdmin, ageMin, ageMax, search, selectedMemberTypes, primaryName, primaryEmail, page, pageSize]);
+  }, [isAdmin, ageMin, ageMax, search, selectedMemberTypes, primaryName, primaryEmail, purchasedFrom, page, pageSize]);
 
   // Debounced search typing
   function onSearchChange(v: string) {
@@ -214,6 +226,7 @@ export default function AdminMembersDirectory() {
     setSelectedMemberTypes([]);
     setPrimaryName("");
     setPrimaryEmail("");
+    setPurchasedFrom(SEASON_START);
     setPage(1);
   }
 
@@ -382,6 +395,29 @@ export default function AdminMembersDirectory() {
             className="mt-1 w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring"
           />
         </div>
+
+        {/* Purchase date */}
+        <div className="col-span-1">
+          <label className="block text-xs font-medium text-gray-600">Purchased on or after</label>
+          <input
+            type="date"
+            value={purchasedFrom}
+            onChange={(e) => {
+              setPurchasedFrom(e.target.value);
+              setPage(1);
+            }}
+            className="mt-1 w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring"
+          />
+          <button
+            onClick={() => {
+              setPurchasedFrom("");
+              setPage(1);
+            }}
+            className="mt-2 rounded-lg border px-2 py-1 text-xs hover:bg-gray-50"
+          >
+            Show all years
+          </button>
+        </div>
       </section>
 
       {/* Active filters summary */}
@@ -401,7 +437,7 @@ export default function AdminMembersDirectory() {
               <th className="px-4 py-3">Member Type</th>
               <th className="px-4 py-3">Designation</th>
               <th className="px-4 py-3">Phone</th>
-              <th className="px-4 py-3">Joined</th>
+              <th className="px-4 py-3">Purchased</th>
             </tr>
           </thead>
           <tbody>
