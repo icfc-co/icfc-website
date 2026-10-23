@@ -10,6 +10,7 @@ export type Member = {
   email?: string | null;
   phone?: string | null;
   age?: number | null;
+  sex?: "male" | "female" | null;
   membership_type?: string | null; // youth | student | regular | senior
   designation?:
     | "head_of_household"
@@ -53,6 +54,8 @@ const AGE_PRESETS: { label: string; min?: number; max?: number }[] = [
 
 // Members who prefer not to share their age enter 0
 const ageLabel = (age?: number | null) => (age == null ? "—" : age > 0 ? String(age) : "Not given");
+
+const genderLabel = (sex?: string | null) => (sex === "male" ? "Male" : sex === "female" ? "Female" : "—");
 
 const MEMBER_TYPES = [
   { key: "youth", label: "Youth" },
@@ -184,7 +187,7 @@ export default function AdminMembersDirectory() {
         // otherwise a LEFT join keeps members without a household
         const filterByHousehold = Boolean(primaryName.trim() || primaryEmail.trim());
         const selectCols = `
-          id,name,email,phone,age,membership_type,designation,household_id,created_at,
+          id,name,email,phone,age,sex,membership_type,designation,household_id,created_at,
           household:${HH_REL}${filterByHousehold ? "!inner" : ""}(
             id,primary_name,primary_email,primary_phone,created_at,subscription_status,current_period_end
           )
@@ -283,6 +286,7 @@ export default function AdminMembersDirectory() {
       "Name",
       "Email",
       "Age",
+      "Gender",
       "Household",
       "Primary Name",
       "Primary Email",
@@ -299,6 +303,7 @@ export default function AdminMembersDirectory() {
         m.name || "",
         m.email || "",
         m.age == null ? "" : ageLabel(m.age),
+        genderLabel(m.sex),
         m.household?.id || "",
         m.household?.primary_name || "",
         m.household?.primary_email || "",
@@ -499,6 +504,7 @@ export default function AdminMembersDirectory() {
               <th className="px-4 py-3">Name</th>
               <th className="px-4 py-3">Email</th>
               <th className="px-4 py-3">Age</th>
+              <th className="px-4 py-3">Gender</th>
               <th className="px-4 py-3">Household</th>
               <th className="px-4 py-3">Primary Name</th>
               <th className="px-4 py-3">Primary Email</th>
@@ -513,17 +519,17 @@ export default function AdminMembersDirectory() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={12} className="px-4 py-6 text-center text-gray-500">Loading members…</td>
+                <td colSpan={13} className="px-4 py-6 text-center text-gray-500">Loading members…</td>
               </tr>
             )}
             {!loading && error && (
               <tr>
-                <td colSpan={12} className="px-4 py-6 text-center text-red-600">{error}</td>
+                <td colSpan={13} className="px-4 py-6 text-center text-red-600">{error}</td>
               </tr>
             )}
             {!loading && !error && rows.length === 0 && (
               <tr>
-                <td colSpan={12} className="px-4 py-6 text-center text-gray-500">No members found.</td>
+                <td colSpan={13} className="px-4 py-6 text-center text-gray-500">No members found.</td>
               </tr>
             )}
             {!loading && !error &&
@@ -532,6 +538,7 @@ export default function AdminMembersDirectory() {
                   <td className="px-4 py-3 font-medium">{m.name || "—"}</td>
                   <td className="px-4 py-3 text-blue-700">{m.email || "—"}</td>
                   <td className={classNames("px-4 py-3", !(m.age && m.age > 0) && "text-gray-400")}>{ageLabel(m.age)}</td>
+                  <td className="px-4 py-3">{genderLabel(m.sex)}</td>
                   <td className="px-4 py-3">{m.household?.id || "—"}</td>
                   <td className="px-4 py-3">{m.household?.primary_name || "—"}</td>
                   <td className="px-4 py-3">{m.household?.primary_email || "—"}</td>
