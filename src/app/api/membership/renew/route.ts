@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
+import { ageAt, amountFor, loadActivePricing, typeForAge } from '@/lib/membershipPricing';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -68,18 +70,65 @@ export async function POST(req: Request) {
     if (!members?.length) return NextResponse.json({ error: 'No members to renew' }, { status: 400 });
 
     const base = computeBaseUrl(req, process.env.NEXT_PUBLIC_SITE_URL);
-    const success_url = new URL('/modules/membership/thanks', base).toString() + '?session_id={CHECKOUT_SESSION_ID}';
+    const success_url = new URL('/modules/registration/membership/thanks', base).toString() + '?session_id={CHECKOUT_SESSION_ID}';
     const cancel_url  = new URL('/modules/registration/membership/manage?canceled=1', base).toString(); // fixed
 
-    const line_items = members.map((m: any, idx: number) => ({
+    // Service role: pricing + checkout payloads (guests' payload rows aren't reachable through RLS)
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+    const pricing = await loadActivePricing(supabaseAdmin);
+
+    // Age everyone to today and re-price: youth past the youth max age renew as regular
+    const renewed = members.map((m: any) => {
+      const age = ageAt(Number(m.age || 0), m.age_updated_at ?? m.created_at);
+      const membership_type = typeForAge(m.membership_type, age, pricing);
+      return { ...m, age, membership_type, price_cents: amountFor(membership_type, age, pricing) };
+    });
+
+    const line_items = renewed.map((m: any, idx: number) => ({
       price_data: {
         currency: 'usd',
-        product_data: { name: `Yearly Membership — ${m.name} (${m.age})`, metadata: { index: String(idx) } },
+        product_data: { name: `Yearly Membership — ${m.name} (${m.membership_type})`, metadata: { index: String(idx) } },
         unit_amount: m.price_cents,
-        recurring: { interval: 'year' },
+        recurring: { interval: 'year' as const },
       },
       quantity: 1,
     }));
+
+    const total_cents = renewed.reduce((s: number, m: any) => s + Number(m.price_cents || 0), 0);
+
+    // Store the full member snapshot (type, designation, sex, ...) the same way new checkouts do,
+    // so the webhook doesn't fall back to members_json and default everyone to "regular".
+    const { data: inserted, error: insertErr } = await supabaseAdmin
+      .from('membership_checkout_payloads')
+      .insert({
+        user_id: user.id,
+        payload: {
+          primary: { name: hh.primary_name || '', email: hh.primary_email || '', phone: hh.primary_phone || '' },
+          members: renewed.map((m: any) => ({
+            name: m.name,
+            age: m.age,
+            sex: m.sex ?? undefined,
+            email: m.email ?? undefined,
+            phone: m.phone ?? undefined,
+            membership_type: m.membership_type,
+            designation: m.designation ?? undefined,
+          })),
+          recurrence: 'yearly',
+          total_cents,
+          user_id: user.id,
+          origin: base,
+          renewal_of_household_id: hh.id,
+        },
+      })
+      .select('id')
+      .single();
+    if (insertErr || !inserted) {
+      console.error('renew payload insert error', insertErr);
+      return NextResponse.json({ error: 'Failed to persist renewal payload.' }, { status: 500 });
+    }
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
@@ -88,15 +137,14 @@ export async function POST(req: Request) {
       customer_email: hh.primary_email || undefined,
       line_items,
       metadata: {
+        fund: 'membership',
+        payload_id: inserted.id as string,
         user_id: user.id,
         renewal_of_household_id: String(hh.id),
-        primary_name: hh.primary_name || '',
-        primary_email: hh.primary_email || '',
-        primary_phone: hh.primary_phone || '',
-        members_json: JSON.stringify(
-          members.map((m: any) => ({ name: m.name, age: m.age, phone: m.phone, email: m.email }))
-        ),
-        total_cents: String(members.reduce((s: number, m: any) => s + Number(m.price_cents || 0), 0)),
+        recurrence: 'yearly',
+        members_count: String(members.length),
+        total_cents: String(total_cents),
+        primary_name: (hh.primary_name || '').substring(0, 80),
       },
     });
 

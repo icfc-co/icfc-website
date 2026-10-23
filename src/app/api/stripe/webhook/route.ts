@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
+import { ageAt, amountFor as priceFor, loadActivePricing, typeForAge } from "@/lib/membershipPricing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,6 +14,26 @@ function missingEnv(...keys: string[]) {
 const iso = (unix?: number | null) => (unix ? new Date(unix * 1000).toISOString() : null);
 const todayISO = () => { const d = new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); };
 const plusOneYearISO = (yyyy_mm_dd: string) => { const d = new Date(yyyy_mm_dd + "T00:00:00Z"); d.setUTCFullYear(d.getUTCFullYear() + 1); return d.toISOString().slice(0,10); };
+// Requests use API 2024-06-20 (period on the subscription / invoice.subscription);
+// newer SDK typings moved these, so read both shapes.
+const subPeriodEnd = (sub: Stripe.Subscription) =>
+  iso((sub as any).current_period_end ?? sub.items?.data?.[0]?.current_period_end);
+const invoiceSubscriptionId = (inv: Stripe.Invoice): string | null => {
+  const raw = (inv as any).subscription ?? inv.parent?.subscription_details?.subscription;
+  return typeof raw === "string" ? raw : raw?.id ?? null;
+};
+// Subscription items are named "… — {member name} ({type or age})"; pull out the member name
+const itemMemberName = (item: Stripe.SubscriptionItem): string | null => {
+  const p = item.price.product;
+  const name = typeof p === "string" || (p as Stripe.DeletedProduct).deleted ? "" : (p as Stripe.Product).name;
+  const m = name.match(/—\s*(.+?)\s*\([^)]*\)\s*$/);
+  return m ? m[1].trim().toLowerCase() : null;
+};
+const itemIsYouth = (item: Stripe.SubscriptionItem) => {
+  const p = item.price.product;
+  const name = typeof p === "string" || (p as Stripe.DeletedProduct).deleted ? "" : (p as Stripe.Product).name;
+  return /\(youth\)\s*$/i.test(name) || item.price.unit_amount === 0;
+};
 const isUuid = (v: any) =>
   typeof v === "string" &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
@@ -300,6 +321,25 @@ export async function POST(req: Request) {
             household_id = tryInsert.data.id;
           }
 
+          // Yearly memberships are Stripe subscriptions: remember which one so the
+          // members directory keeps this household listed while it stays active.
+          if (s.mode === "subscription" && typeof s.subscription === "string") {
+            let subscription_status: string = "active";
+            let current_period_end: string | null = null;
+            try {
+              const sub = await stripe.subscriptions.retrieve(s.subscription);
+              subscription_status = sub.status;
+              current_period_end = subPeriodEnd(sub);
+            } catch (subErr: any) {
+              await log("membership_subscription_fetch_failed", "webhook", { subscription_id: s.subscription }, subErr?.message);
+            }
+            const upd = await admin
+              .from("membership_households")
+              .update({ stripe_subscription_id: s.subscription, subscription_status, current_period_end })
+              .eq("id", household_id);
+            if (upd.error) await log("household_subscription_update_failed", "webhook", { household_id }, upd.error.message);
+          }
+
           // insert members snapshot
           if (uniqMembers.length) {
             const rows = uniqMembers.map((m, idx) => ({
@@ -416,13 +456,177 @@ export async function POST(req: Request) {
       }
 
       /* =======================================================================
-       * B) SUBSCRIPTION CHANGES — optional legacy membership sync
+       * B) INVOICE PAID — yearly auto-renewal of a membership subscription
+       * ======================================================================= */
+      case "invoice.paid": {
+        const inv = event.data.object as Stripe.Invoice;
+        // The first invoice is handled by checkout.session.completed; only renewals here
+        if (inv.billing_reason !== "subscription_cycle") break;
+        const subscriptionId = invoiceSubscriptionId(inv);
+        if (!subscriptionId) break;
+
+        const { data: hh, error: hhErr } = await admin
+          .from("membership_households")
+          .select("id")
+          .eq("stripe_subscription_id", subscriptionId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (hhErr) throw hhErr;
+        if (!hh) {
+          // not a membership (e.g. a recurring donation)
+          await log("invoice_paid_no_household", "webhook", { invoice_id: inv.id, subscriptionId });
+          break;
+        }
+
+        const sub = await stripe.subscriptions.retrieve(subscriptionId);
+        const current_period_end = subPeriodEnd(sub);
+        const upd = await admin
+          .from("membership_households")
+          .update({
+            subscription_status: sub.status,
+            current_period_end,
+            ...(current_period_end ? { end_date: current_period_end.slice(0, 10) } : {}),
+          })
+          .eq("id", hh.id);
+        if (upd.error) {
+          await log("household_renewal_update_failed", "webhook", { household_id: hh.id }, upd.error.message);
+          throw upd.error;
+        }
+
+        // Renewals have no checkout session; the invoice id keeps this upsert idempotent
+        const paymentIntent = (inv as any).payment_intent;
+        const pay = await admin.from("membership_payments").upsert(
+          {
+            household_id: hh.id,
+            stripe_session_id: inv.id,
+            stripe_payment_intent: typeof paymentIntent === "string" ? paymentIntent : null,
+            amount_cents: inv.amount_paid,
+            currency: inv.currency ?? "usd",
+            interval: "year",
+            status: "succeeded",
+          },
+          { onConflict: "stripe_session_id" }
+        );
+        if (pay.error) {
+          await log("renewal_payment_upsert_failed", "webhook", { household_id: hh.id, invoice_id: inv.id }, pay.error.message);
+          throw pay.error;
+        }
+
+        // A membership year has passed: age the members; youth past the youth max age become regular
+        {
+          const pricing = await loadActivePricing(admin);
+          const { data: mems, error: memErr } = await admin
+            .from("membership_members")
+            .select("id, age, membership_type, created_at, age_updated_at")
+            .eq("household_id", hh.id);
+          if (memErr) throw memErr;
+          const now = new Date().toISOString();
+          for (const m of mems || []) {
+            const age = ageAt(Number(m.age || 0), m.age_updated_at ?? m.created_at);
+            if (age === m.age) continue;
+            const membership_type = typeForAge(m.membership_type, age, pricing);
+            const upd = await admin
+              .from("membership_members")
+              .update({
+                age,
+                age_updated_at: now,
+                ...(membership_type !== m.membership_type
+                  ? { membership_type, price_cents: priceFor(membership_type, age, pricing) }
+                  : {}),
+              })
+              .eq("id", m.id);
+            if (upd.error) await log("member_age_update_failed", "webhook", { member_id: m.id }, upd.error.message);
+          }
+        }
+
+        await log("membership_renewal_ok", "webhook", { household_id: hh.id, invoice_id: inv.id, current_period_end });
+        break;
+      }
+
+      /* =======================================================================
+       * B2) INVOICE UPCOMING — days before an auto-renewal charges: youth members who
+       *     will be past the youth max age at renewal move to the regular price
+       * ======================================================================= */
+      case "invoice.upcoming": {
+        const inv = event.data.object as Stripe.Invoice;
+        const subscriptionId = invoiceSubscriptionId(inv);
+        if (!subscriptionId) break;
+
+        const { data: hh, error: hhErr } = await admin
+          .from("membership_households")
+          .select("id")
+          .eq("stripe_subscription_id", subscriptionId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (hhErr) throw hhErr;
+        if (!hh) break; // not a membership
+
+        const sub = await stripe.subscriptions.retrieve(subscriptionId, { expand: ["items.data.price.product"] });
+        const renewsAt = new Date(subPeriodEnd(sub) ?? Date.now());
+        const pricing = await loadActivePricing(admin);
+        const regularCents = pricing["regular"]?.amount_cents ?? 0;
+
+        const { data: mems, error: memErr } = await admin
+          .from("membership_members")
+          .select("id, name, age, membership_type, created_at, age_updated_at")
+          .eq("household_id", hh.id);
+        if (memErr) throw memErr;
+
+        for (const m of mems || []) {
+          const item = sub.items.data.find((it) => itemMemberName(it) === String(m.name || "").trim().toLowerCase());
+          // Only touch members who are (or are still billed as) youth; never add a charge for anyone else
+          const billedAsYouth = m.membership_type === "youth" || (item != null && itemIsYouth(item));
+          if (!billedAsYouth) continue;
+          const age = ageAt(Number(m.age || 0), m.age_updated_at ?? m.created_at, renewsAt);
+          if (typeForAge("youth", age, pricing) !== "regular") continue;
+          if (item && item.price.unit_amount === regularCents) continue; // already moved
+
+          const productName = `Membership — ${m.name} (regular)`;
+          try {
+            if (item) {
+              const p = item.price.product;
+              const productId = typeof p === "string" ? p : p.id;
+              await stripe.products.update(productId, { name: productName });
+              await stripe.subscriptionItems.update(item.id, {
+                price_data: { currency: sub.currency, product: productId, unit_amount: regularCents, recurring: { interval: "year" } },
+                proration_behavior: "none",
+              });
+            } else {
+              // Free youth members have no line item yet
+              const product = await stripe.products.create({ name: productName, metadata: { member_id: String(m.id) } });
+              await stripe.subscriptionItems.create({
+                subscription: subscriptionId,
+                price_data: { currency: sub.currency, product: product.id, unit_amount: regularCents, recurring: { interval: "year" } },
+                proration_behavior: "none",
+              });
+            }
+            await log("youth_aged_out_to_regular", "webhook", { household_id: hh.id, member_id: m.id, age, subscriptionId });
+          } catch (e: any) {
+            await log("youth_aged_out_update_failed", "webhook", { household_id: hh.id, member_id: m.id, subscriptionId }, e?.message);
+          }
+        }
+        break;
+      }
+
+      /* =======================================================================
+       * C) SUBSCRIPTION CHANGES — household status sync + optional legacy membership sync
        * ======================================================================= */
       case "customer.subscription.updated":
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
         const customerId = sub.customer as string;
         const status = sub.status;
+
+        // Keep membership households in sync (drives the members directory)
+        {
+          const hhUpd = await admin
+            .from("membership_households")
+            .update({ subscription_status: status, current_period_end: subPeriodEnd(sub) })
+            .eq("stripe_subscription_id", sub.id);
+          if (hhUpd.error) await log("household_subscription_sync_failed", "webhook", { subscription_id: sub.id }, hhUpd.error.message);
+        }
 
         const { data: m, error } = await admin
           .from("memberships")

@@ -26,6 +26,9 @@ export type Member = {
     primary_name?: string | null;
     primary_email?: string | null;
     primary_phone?: string | null;
+    created_at?: string | null;
+    subscription_status?: string | null;
+    current_period_end?: string | null;
   } | null;
 };
 
@@ -45,7 +48,11 @@ const AGE_PRESETS: { label: string; min?: number; max?: number }[] = [
   { label: "26–40", min: 26, max: 40 },
   { label: "41–60", min: 41, max: 60 },
   { label: "60+", min: 61 },
+  { label: "Not given", min: 0, max: 0 },
 ];
+
+// Members who prefer not to share their age enter 0
+const ageLabel = (age?: number | null) => (age == null ? "—" : age > 0 ? String(age) : "Not given");
 
 const MEMBER_TYPES = [
   { key: "youth", label: "Youth" },
@@ -55,8 +62,32 @@ const MEMBER_TYPES = [
 ] as const;
 type MemberTypeKey = (typeof MEMBER_TYPES)[number]["key"];
 
-// Members re-purchase each season; by default only show this season's purchases
+// Members re-purchase each season; by default show this season's purchases
+// plus anyone whose yearly subscription is still active
 const SEASON_START = "2026-09-01";
+
+const QUALIFY_OPTIONS = [
+  { key: "any", label: "New purchases + active subscriptions" },
+  { key: "purchase", label: "New purchases only" },
+  { key: "subscription", label: "Active subscriptions only" },
+] as const;
+type QualifyKey = (typeof QUALIFY_OPTIONS)[number]["key"];
+
+// Local midnight of a YYYY-MM-DD date, as an ISO timestamp
+function startOfDayISO(yyyy_mm_dd: string) {
+  const [y, mo, d] = yyyy_mm_dd.split("-").map(Number);
+  return new Date(y, mo - 1, d).toISOString();
+}
+
+// Why a member is listed for the selected season
+function qualifiesBy(m: Member, purchasedFromISO: string | null): string[] {
+  if (!purchasedFromISO) return [];
+  const why: string[] = [];
+  const bought = m.household?.created_at ?? m.created_at;
+  if (bought && new Date(bought) >= new Date(purchasedFromISO)) why.push("New purchase");
+  if (m.household?.subscription_status === "active") why.push("Active subscription");
+  return why;
+}
 
 // Human label for designation
 const designationLabel = (d?: Member["designation"]) =>
@@ -85,6 +116,8 @@ export default function AdminMembersDirectory() {
   const [primaryName, setPrimaryName] = useState("");
   const [primaryEmail, setPrimaryEmail] = useState("");
   const [purchasedFrom, setPurchasedFrom] = useState(SEASON_START); // YYYY-MM-DD, "" = all
+  const [qualify, setQualify] = useState<QualifyKey>("any");
+  const purchasedFromISO = purchasedFrom ? startOfDayISO(purchasedFrom) : null;
 
   // Data & paging
   const [rows, setRows] = useState<Member[]>([]);
@@ -123,14 +156,18 @@ export default function AdminMembersDirectory() {
   // Active filter summary
   const activeFiltersText = useMemo(() => {
     const bits: string[] = [];
-    if (ageMin != null || ageMax != null) bits.push(`Age ${ageMin ?? "0"}${ageMax ? "–" + ageMax : "+"}`);
+    if (ageMin === 0 && ageMax === 0) bits.push("Age not given");
+    else if (ageMin != null || ageMax != null) bits.push(`Age ${ageMin ?? "1"}${ageMax ? "–" + ageMax : "+"}`);
     if (selectedMemberTypes.length) bits.push(`Member type: ${selectedMemberTypes.join(", ")}`);
     if (primaryName.trim()) bits.push(`Primary name: “${primaryName.trim()}”`);
     if (primaryEmail.trim()) bits.push(`Primary email: “${primaryEmail.trim()}”`);
     if (search.trim()) bits.push(`Search: “${search.trim()}”`);
-    if (purchasedFrom) bits.push(`Purchased on/after ${purchasedFrom}`);
+    if (purchasedFrom) {
+      const q = QUALIFY_OPTIONS.find((o) => o.key === qualify)!;
+      bits.push(`${q.label} (season from ${purchasedFrom})`);
+    }
     return bits.join(" · ");
-  }, [ageMin, ageMax, search, selectedMemberTypes, primaryName, primaryEmail, purchasedFrom]);
+  }, [ageMin, ageMax, search, selectedMemberTypes, primaryName, primaryEmail, purchasedFrom, qualify]);
 
   // Fetch list when filters/page change
   useEffect(() => {
@@ -147,21 +184,27 @@ export default function AdminMembersDirectory() {
         const selectCols = `
           id,name,email,phone,age,membership_type,designation,household_id,created_at,
           household:${HH_REL}(
-            id,primary_name,primary_email,primary_phone
+            id,primary_name,primary_email,primary_phone,created_at,subscription_status,current_period_end
           )
         `;
 
-        let query = supabase.from("membership_members").select(selectCols, { count: "exact" });
+        // members_directory (see supabase/migrations) applies the season rule server-side:
+        // purchased on/after the date OR active subscription, latest household per primary email.
+        // With no date it returns every member row.
+        let query = supabase.rpc(
+          "members_directory",
+          { p_purchased_from: purchasedFromISO, p_qualify: qualify },
+          { count: "exact" }
+        );
 
         // Filters
-        if (ageMin != null) query = query.gte("age", ageMin);
-        if (ageMax != null) query = query.lte("age", ageMax);
-
-        // Member rows are inserted at checkout (new or renewal), so created_at = purchase time.
-        // Use local midnight of the chosen day.
-        if (purchasedFrom) {
-          const [y, mo, d] = purchasedFrom.split("-").map(Number);
-          query = query.gte("created_at", new Date(y, mo - 1, d).toISOString());
+        // Age 0 means "not given": only the Not given preset matches it, age ranges exclude it
+        if (ageMin === 0 && ageMax === 0) {
+          query = query.lte("age", 0);
+        } else {
+          if (ageMin != null || ageMax != null) query = query.gt("age", 0);
+          if (ageMin != null) query = query.gte("age", ageMin);
+          if (ageMax != null) query = query.lte("age", ageMax);
         }
 
         const s = search.trim();
@@ -181,11 +224,13 @@ export default function AdminMembersDirectory() {
           query = query.ilike("membership_households.primary_email", `%${primaryEmail.trim()}%`);
         }
 
-        // Sort & page
-        query = query.order("name", { ascending: true });
+        // Columns (with household embed), sort & page
         const from = (page - 1) * pageSize;
         const to = from + pageSize - 1;
-        const { data, error, count } = await query.range(from, to);
+        const { data, error, count } = await query
+          .select(selectCols)
+          .order("name", { ascending: true })
+          .range(from, to);
         if (error) throw error;
 
         setRows((data as any as Member[]) || []);
@@ -199,7 +244,7 @@ export default function AdminMembersDirectory() {
     };
 
     run();
-  }, [isAdmin, ageMin, ageMax, search, selectedMemberTypes, primaryName, primaryEmail, purchasedFrom, page, pageSize]);
+  }, [isAdmin, ageMin, ageMax, search, selectedMemberTypes, primaryName, primaryEmail, purchasedFromISO, qualify, page, pageSize]);
 
   // Debounced search typing
   function onSearchChange(v: string) {
@@ -227,6 +272,7 @@ export default function AdminMembersDirectory() {
     setPrimaryName("");
     setPrimaryEmail("");
     setPurchasedFrom(SEASON_START);
+    setQualify("any");
     setPage(1);
   }
 
@@ -242,12 +288,15 @@ export default function AdminMembersDirectory() {
       "Designation",
       "Phone",
       "Created At",
+      "Listed Because",
+      "Subscription Status",
+      "Subscription Renews",
     ];
     const lines = rows.map((m) =>
       [
         m.name || "",
         m.email || "",
-        m.age ?? "",
+        m.age == null ? "" : ageLabel(m.age),
         m.household?.id || "",
         m.household?.primary_name || "",
         m.household?.primary_email || "",
@@ -255,6 +304,9 @@ export default function AdminMembersDirectory() {
         designationLabel(m.designation),
         m.phone || "",
         m.created_at || "",
+        qualifiesBy(m, purchasedFromISO).join(" + "),
+        m.household?.subscription_status || "",
+        m.household?.current_period_end?.slice(0, 10) || "",
       ]
         .map((x) => `"${String(x).replace(/"/g, '""')}"`)
         .join(",")
@@ -398,7 +450,7 @@ export default function AdminMembersDirectory() {
 
         {/* Purchase date */}
         <div className="col-span-1">
-          <label className="block text-xs font-medium text-gray-600">Purchased on or after</label>
+          <label className="block text-xs font-medium text-gray-600">Season start (purchased on or after)</label>
           <input
             type="date"
             value={purchasedFrom}
@@ -417,6 +469,20 @@ export default function AdminMembersDirectory() {
           >
             Show all years
           </button>
+          <label className="mt-3 block text-xs font-medium text-gray-600">Include</label>
+          <select
+            value={qualify}
+            disabled={!purchasedFrom}
+            onChange={(e) => {
+              setQualify(e.target.value as QualifyKey);
+              setPage(1);
+            }}
+            className="mt-1 w-full rounded-xl border px-2 py-2 text-sm disabled:opacity-50"
+          >
+            {QUALIFY_OPTIONS.map((o) => (
+              <option key={o.key} value={o.key}>{o.label}</option>
+            ))}
+          </select>
         </div>
       </section>
 
@@ -438,22 +504,24 @@ export default function AdminMembersDirectory() {
               <th className="px-4 py-3">Designation</th>
               <th className="px-4 py-3">Phone</th>
               <th className="px-4 py-3">Purchased</th>
+              <th className="px-4 py-3">Listed Because</th>
+              <th className="px-4 py-3">Subscription</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={10} className="px-4 py-6 text-center text-gray-500">Loading members…</td>
+                <td colSpan={12} className="px-4 py-6 text-center text-gray-500">Loading members…</td>
               </tr>
             )}
             {!loading && error && (
               <tr>
-                <td colSpan={10} className="px-4 py-6 text-center text-red-600">{error}</td>
+                <td colSpan={12} className="px-4 py-6 text-center text-red-600">{error}</td>
               </tr>
             )}
             {!loading && !error && rows.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-6 text-center text-gray-500">No members found.</td>
+                <td colSpan={12} className="px-4 py-6 text-center text-gray-500">No members found.</td>
               </tr>
             )}
             {!loading && !error &&
@@ -461,7 +529,7 @@ export default function AdminMembersDirectory() {
                 <tr key={m.id} className="border-b last:border-0">
                   <td className="px-4 py-3 font-medium">{m.name || "—"}</td>
                   <td className="px-4 py-3 text-blue-700">{m.email || "—"}</td>
-                  <td className="px-4 py-3">{m.age ?? "—"}</td>
+                  <td className={classNames("px-4 py-3", !(m.age && m.age > 0) && "text-gray-400")}>{ageLabel(m.age)}</td>
                   <td className="px-4 py-3">{m.household?.id || "—"}</td>
                   <td className="px-4 py-3">{m.household?.primary_name || "—"}</td>
                   <td className="px-4 py-3">{m.household?.primary_email || "—"}</td>
@@ -469,6 +537,30 @@ export default function AdminMembersDirectory() {
                   <td className="px-4 py-3">{designationLabel(m.designation)}</td>
                   <td className="px-4 py-3">{m.phone || "—"}</td>
                   <td className="px-4 py-3">{m.created_at ? new Date(m.created_at).toLocaleDateString() : "—"}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1">
+                      {qualifiesBy(m, purchasedFromISO).map((w) => (
+                        <span key={w} className="whitespace-nowrap rounded-full border border-green-600 bg-green-50 px-2 py-0.5 text-xs text-green-700">
+                          {w}
+                        </span>
+                      ))}
+                      {!purchasedFromISO && "—"}
+                    </div>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3">
+                    {m.household?.subscription_status ? (
+                      <>
+                        <span className="capitalize">{m.household.subscription_status.replace("_", " ")}</span>
+                        {m.household.subscription_status === "active" && m.household.current_period_end && (
+                          <div className="text-xs text-gray-500">
+                            Renews {new Date(m.household.current_period_end).toLocaleDateString()}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      "One-time"
+                    )}
+                  </td>
                 </tr>
               ))}
           </tbody>
