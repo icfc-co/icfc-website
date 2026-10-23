@@ -66,8 +66,14 @@ const MEMBER_TYPES = [
 type MemberTypeKey = (typeof MEMBER_TYPES)[number]["key"];
 
 // Members re-purchase each season; by default show this season's purchases
-// plus anyone whose yearly subscription is still active
-const SEASON_START = "2026-09-01";
+// plus anyone whose yearly subscription is still active.
+// The season starts every September 1st: use the most recent one on or before today.
+const SEASON_START_MONTH = 9; // September
+function currentSeasonStart(today = new Date()): string {
+  const year = today.getMonth() + 1 >= SEASON_START_MONTH ? today.getFullYear() : today.getFullYear() - 1;
+  return `${year}-${String(SEASON_START_MONTH).padStart(2, "0")}-01`;
+}
+const SEASON_START = currentSeasonStart();
 
 const QUALIFY_OPTIONS = [
   { key: "any", label: "New purchases + active subscriptions" },
