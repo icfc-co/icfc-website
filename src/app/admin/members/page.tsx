@@ -180,10 +180,12 @@ export default function AdminMembersDirectory() {
         // Pin the relationship by FK name to avoid “more than one relationship was found”
         const HH_REL = "membership_households!membership_members_household_id_fkey";
 
-        // We can keep it as a LEFT join for simplicity and still filter on the household fields
+        // Household filters need an INNER join (and the alias) to narrow the member rows;
+        // otherwise a LEFT join keeps members without a household
+        const filterByHousehold = Boolean(primaryName.trim() || primaryEmail.trim());
         const selectCols = `
           id,name,email,phone,age,membership_type,designation,household_id,created_at,
-          household:${HH_REL}(
+          household:${HH_REL}${filterByHousehold ? "!inner" : ""}(
             id,primary_name,primary_email,primary_phone,created_at,subscription_status,current_period_end
           )
         `;
@@ -218,10 +220,10 @@ export default function AdminMembersDirectory() {
         }
 
         if (primaryName.trim()) {
-          query = query.ilike("membership_households.primary_name", `%${primaryName.trim()}%`);
+          query = query.ilike("household.primary_name", `%${primaryName.trim()}%`);
         }
         if (primaryEmail.trim()) {
-          query = query.ilike("membership_households.primary_email", `%${primaryEmail.trim()}%`);
+          query = query.ilike("household.primary_email", `%${primaryEmail.trim()}%`);
         }
 
         // Columns (with household embed), sort & page
