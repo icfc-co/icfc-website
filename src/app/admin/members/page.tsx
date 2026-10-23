@@ -122,7 +122,7 @@ export default function AdminMembersDirectory() {
   // Data & paging
   const [rows, setRows] = useState<Member[]>([]);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(100);
   const [total, setTotal] = useState(0);
 
   const searchRef = useRef<number | null>(null);
