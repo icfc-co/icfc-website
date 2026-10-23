@@ -17,7 +17,7 @@ export default function MemberDashboard() {
           Manage Membership
         </Link>
       </div>
-      <div className="mt-6">
+      {/* <div className="mt-6">
         <Link
           href="/elections/2026/membership-review"
           className="inline-flex items-center rounded-2xl px-5 py-3 font-medium shadow-md transition
@@ -25,7 +25,7 @@ export default function MemberDashboard() {
         >
           ICFC Elections 2025
         </Link>
-      </div>
+      </div> */}
     </section>
   );
 }
