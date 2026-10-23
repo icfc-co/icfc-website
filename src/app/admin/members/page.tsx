@@ -364,7 +364,7 @@ export default function AdminMembersDirectory() {
           <label className="block text-xs font-medium text-gray-600">Search (name or email)</label>
           <input
             type="text"
-            placeholder="e.g., Sarah Khan or sarah@…"
+            placeholder="e.g., Adnan Raza or adnan@…"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             className="mt-1 w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring"
