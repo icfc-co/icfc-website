@@ -495,7 +495,7 @@ export default function AdminMembersDirectory() {
             }}
             className="ml-2 rounded-xl border px-2 py-2 text-sm"
           >
-            {[10, 25, 50, 100].map((n) => (
+            {[100, 200, 500].map((n) => (
               <option key={n} value={n}>{n} / page</option>
             ))}
           </select>
