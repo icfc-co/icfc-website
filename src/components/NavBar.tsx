@@ -74,6 +74,8 @@ export default function NavBar() {
           case 'user': setDashboardRoute('/user'); break;
           default: setDashboardRoute('/user');
         }
+      } else {
+        setDashboardRoute('/');
       }
     };
 
@@ -118,8 +120,14 @@ export default function NavBar() {
     loadNavData();
 
     // Auth listener
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       setIsLoggedIn(!!session);
+      // A different account may have signed in without a page reload: recompute the
+      // dashboard link, or it keeps pointing at the previous account's dashboard (403).
+      // Deferred: supabase-js advises against awaiting its calls inside this callback.
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
+        setTimeout(getSessionAndRole, 0);
+      }
     });
 
     const ch = supabase
@@ -148,7 +156,14 @@ export default function NavBar() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+    // Clear the server session cookie too, so the next account doesn't inherit it
+    await fetch('/api/auth/set', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'SIGNED_OUT' }),
+    }).catch(() => {});
     setIsLoggedIn(false);
+    setDashboardRoute('/');
     router.push('/');
   };
 

@@ -39,7 +39,12 @@ export async function POST(req: Request) {
 
   // Keep parity with Supabase’s onAuthStateChange events
   if (event === "SIGNED_OUT") {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+    // signOut() can bail out before clearing cookies (e.g. session already revoked by the
+    // browser), which left the previous account's session for middleware; expire them here.
+    for (const c of cookieStore.getAll()) {
+      if (c.name.startsWith("sb-")) res.cookies.set(c.name, "", { path: "/", maxAge: 0 });
+    }
   } else if (
     event === "SIGNED_IN" ||
     event === "TOKEN_REFRESHED" ||
