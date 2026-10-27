@@ -21,7 +21,7 @@ async function requireAdmin(req: NextRequest) {
   const { data: { user } } = await supa.auth.getUser();
   if (!user) return { ok: false, res: new NextResponse("Unauthorized", { status: 401 }) };
 
-  const { data: isAdmin } = await supa.rpc("is_admin");
+  const { data: isAdmin } = await supa.rpc("is_admin", { uid: user.id });
   if (!isAdmin) return { ok: false, res: new NextResponse("Forbidden", { status: 403 }) };
 
   return { ok: true as const };

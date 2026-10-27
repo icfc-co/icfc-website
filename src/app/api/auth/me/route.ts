@@ -9,6 +9,6 @@ export async function GET(req: NextRequest) {
     { cookies: { getAll: () => req.cookies.getAll(), setAll: () => {} } }
   );
   const { data: { user } } = await supa.auth.getUser();
-  const { data: isAdmin } = user ? await supa.rpc('is_admin') : { data: false };
+  const { data: isAdmin } = user ? await supa.rpc('is_admin', { uid: user.id }) : { data: false };
   return NextResponse.json({ user, isAdmin: !!isAdmin });
 }

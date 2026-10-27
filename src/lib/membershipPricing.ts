@@ -14,10 +14,14 @@ export async function loadActivePricing(client: SupabaseClient): Promise<Pricing
   return Object.fromEntries(data.map((p: PricingRow) => [p.type, p]));
 }
 
-// Youth members past the youth max age (from membership_pricing) become regular members
+// Youth members past the youth max age, and seniors under the senior min age (from
+// membership_pricing), are regular members. Age 0 means "not given" and is never re-typed.
 export function typeForAge(type: string, age: number, pricing: PricingMap): string {
   const max = pricing["youth"]?.max_age;
-  return type === "youth" && max != null && age > max ? "regular" : type;
+  if (type === "youth" && max != null && age > max) return "regular";
+  const min = pricing["senior"]?.min_age;
+  if (type === "senior" && min != null && age > 0 && age < min) return "regular";
+  return type;
 }
 
 export function amountFor(type: string, age: number, pricing: PricingMap): number {

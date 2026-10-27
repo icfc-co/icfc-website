@@ -116,10 +116,10 @@ export default function MembershipStartPage() {
     const fallback: Record<MemberType, number> = { student: 1500, senior: 1500, regular: 2500, youth: 0 };
     const row = prices?.[t];
     const cents = row?.amount_cents ?? fallback[t];
-    if (t === 'youth' && row?.max_age != null && ageNum > row.max_age) {
-      const regCents = prices?.regular?.amount_cents ?? fallback.regular;
-      return regCents / 100;
-    }
+    // Mirrors typeForAge in src/lib/membershipPricing.ts (age 0 = not given)
+    const regCents = prices?.regular?.amount_cents ?? fallback.regular;
+    if (t === 'youth' && row?.max_age != null && ageNum > row.max_age) return regCents / 100;
+    if (t === 'senior' && row?.min_age != null && ageNum > 0 && ageNum < row.min_age) return regCents / 100;
     return cents / 100;
   };
 

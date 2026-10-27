@@ -13,18 +13,8 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setError('');
 
-    // Optional: skip this DB check if some legit users might not have a profile row yet
-    const { data: userProfile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('email', email)
-      .maybeSingle();
-
-    if (!userProfile) {
-      setError('Email not found. Please sign up first.');
-      return;
-    }
-
+    // No "email exists?" lookup: profiles aren't publicly readable, and Supabase
+    // silently ignores unknown addresses, so this doesn't reveal who has an account.
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
     });

@@ -4,8 +4,9 @@
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/require-admin';
 
 const A_URL = process.env.NEXT_PUBLIC_SUPABASE_URL as string | undefined;
 const A_KEY = process.env.SUPABASE_SERVICE_ROLE as string | undefined;
@@ -13,7 +14,10 @@ const admin = A_URL && A_KEY ? createClient(A_URL, A_KEY) : null;
 
 function parseIntSafe(v: string | null, d: number) { const n = v ? parseInt(v, 10) : NaN; return Number.isFinite(n) && n>0 ? n : d; }
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
+  const gate = await requireAdmin(req, { alsoAllow: ['volunteer'] });
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+
   try {
     if (!admin) return NextResponse.json({ error: 'Server DB not configured.' }, { status: 501 });
 
@@ -49,7 +53,10 @@ export async function GET(req: Request) {
   }
 }
 
-export async function PATCH(req: Request) {
+export async function PATCH(req: NextRequest) {
+  const gate = await requireAdmin(req, { alsoAllow: ['volunteer'] });
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+
   try {
     if (!admin) return NextResponse.json({ error: 'Server DB not configured.' }, { status: 501 });
     const body = await req.json().catch(() => null);

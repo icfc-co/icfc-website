@@ -40,6 +40,14 @@ export default function LoginPage() {
       return;
     }
 
+    // Write the session cookie now: middleware checks it on the dashboard we redirect to,
+    // and the background sync in AuthCookieSync may not have finished yet
+    await fetch('/api/auth/set', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'SIGNED_IN', session: data.session }),
+    }).catch(() => {});
+
     // Sync role from membership BEFORE reading roles
     await refreshRole();
 

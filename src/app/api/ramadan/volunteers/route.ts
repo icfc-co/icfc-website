@@ -2,8 +2,9 @@
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/require-admin';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL as string | undefined;
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE as string | undefined;
@@ -54,7 +55,10 @@ export async function POST(req: Request) {
 }
 
 // GET - Fetch volunteers (admin only)
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
+  const gate = await requireAdmin(req, { alsoAllow: ['volunteer'] });
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+
   try {
     if (!supabaseAdmin) {
       return NextResponse.json({ error: 'Server DB not configured.' }, { status: 501 });
@@ -95,7 +99,11 @@ export async function GET(req: Request) {
 }
 
 // PATCH - Update volunteer status/notes
-export async function PATCH(req: Request) {
+export async function PATCH(req: NextRequest) {
+  // Volunteers get a read-only table
+  const gate = await requireAdmin(req);
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+
   try {
     const body = await req.json().catch(() => null);
     if (!body) return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
