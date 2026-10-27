@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -54,7 +55,12 @@ export async function POST() {
 
     const today = new Date().toISOString().slice(0, 10);
 
-    const { error: updErr } = await supabase
+    // Households aren't client-writable; the lookup above (RLS: owner or exact email) proves ownership
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+    const { error: updErr } = await supabaseAdmin
       .from('membership_households')
       .update({ status: 'revoked', end_date: today })
       .eq('id', hh.id);

@@ -50,7 +50,7 @@ export async function POST(req: Request) {
         recurrence: String((body as any)?.recurrence ?? "one_time"),
         donorName: String((body as any)?.donorName ?? ""),
         donorEmail: String((body as any)?.donorEmail ?? ""),
-        userId: String((body as any)?.userId ?? ""),
+        userId: "", // never trust a client-supplied user id (the donate form doesn't send one)
         note: String((body as any)?.note ?? ""),
       },
     });

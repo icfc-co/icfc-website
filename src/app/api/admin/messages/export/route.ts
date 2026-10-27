@@ -4,8 +4,9 @@
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/require-admin';
 
 const E_URL = process.env.NEXT_PUBLIC_SUPABASE_URL as string | undefined;
 const E_KEY = process.env.SUPABASE_SERVICE_ROLE as string | undefined;
@@ -17,7 +18,10 @@ function csvEscape(val: any) {
   return s;
 }
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
+  const gate = await requireAdmin(req, { alsoAllow: ['volunteer'] });
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+
   try {
     if (!eadmin) return NextResponse.json({ error: 'Server DB not configured.' }, { status: 501 });
     const url = new URL(req.url);

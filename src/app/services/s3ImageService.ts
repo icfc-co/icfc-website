@@ -1,4 +1,6 @@
-﻿const SUPABASE_EDGE_URL = 'https://iutrkewvhchqskjbuzqc.functions.supabase.co/functions/v1/manage-s3-images';
+﻿import { supabase } from '@/lib/supabaseClient';
+
+const SUPABASE_EDGE_URL = 'https://iutrkewvhchqskjbuzqc.functions.supabase.co/functions/v1/manage-s3-images';
 
 function getAuthHeader() {
   return {
@@ -7,11 +9,18 @@ function getAuthHeader() {
   };
 }
 
+// Upload/delete must carry the signed-in user's token; the edge function checks their role
+async function getUserAuthHeader() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Please sign in again");
+  return { ...getAuthHeader(), Authorization: `Bearer ${session.access_token}` };
+}
+
 export const s3ImageService = {
   async uploadImage(fileName: string, fileType: string) {
     const res = await fetch(SUPABASE_EDGE_URL, {
       method: 'POST',
-      headers: getAuthHeader(),
+      headers: await getUserAuthHeader(),
       body: JSON.stringify({ operation: 'upload', fileName, fileType }),
     });
     if (!res.ok) throw new Error("Failed to get upload URL");
@@ -44,7 +53,7 @@ export const s3ImageService = {
   async deleteImage(fileName: string): Promise<void> {
     const res = await fetch(SUPABASE_EDGE_URL, {
       method: 'POST',
-      headers: getAuthHeader(),
+      headers: await getUserAuthHeader(),
       body: JSON.stringify({ operation: 'delete', fileName }),
     });
     if (!res.ok) throw new Error("Failed to delete image");

@@ -5,8 +5,10 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const {
     donorName, donorEmail, amountCents, fund, note,
-    transferDate, proofUrl, transactionId, userId
+    transferDate, proofUrl, transactionId
   } = body || {};
+  // userId from the body is ignored: anyone could attach a donation to another account
+  const userId = null;
 
   if (!amountCents || amountCents < 100) {
     return NextResponse.json({ error: 'Amount must be at least $1.00' }, { status: 400 });

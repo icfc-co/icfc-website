@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
+import { amountFor as priceFor, typeForAge } from '@/lib/membershipPricing';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -54,10 +55,25 @@ export async function POST(req: Request) {
     const primary = body?.primary as { name: string; email?: string; phone?: string } | null;
     const members = (body?.members as Member[]) || [];
     const recurrence: Recurrence = (body?.recurrence as Recurrence) || 'one_time';
-    const user_id = (body?.user_id as string | undefined) || undefined; // optional, may be undefined for guests
+    // Not taken from the body: the webhook links the household to this user and grants roles.
+    // The form doesn't send one; households are matched to accounts by email.
+    const user_id: string | undefined = undefined;
 
     if (!members.length || !members[0]?.name) {
       return NextResponse.json({ error: 'Primary member missing.' }, { status: 400 });
+    }
+    if (members.length > 20) {
+      return NextResponse.json({ error: 'Too many members in one household.' }, { status: 400 });
+    }
+    const TYPES: MemberType[] = ['student', 'senior', 'regular', 'youth'];
+    for (const m of members) {
+      const age = Number(m?.age ?? 0);
+      if (!TYPES.includes(m?.membership_type)) {
+        return NextResponse.json({ error: 'Invalid membership type.' }, { status: 400 });
+      }
+      if (!Number.isFinite(age) || age < 0 || age > 120) {
+        return NextResponse.json({ error: 'Invalid age.' }, { status: 400 });
+      }
     }
 
     // Supabase admin client (service role) – required because guests can checkout
@@ -80,15 +96,8 @@ export async function POST(req: Request) {
       pricing.map((p: any) => [p.type, p])
     );
 
-    const amountFor = (t: MemberType, age: number) => {
-      const row = priceMap[t];
-      if (!row) return 0;
-      if (t === 'youth' && row.max_age != null && age > row.max_age) {
-        const reg = priceMap['regular'];
-        return reg ? reg.amount_cents : 0;
-      }
-      return row.amount_cents;
-    };
+    // Same age rules as renewals (youth over max / senior under min pay regular)
+    const amountFor = (t: MemberType, age: number) => priceFor(t, age, priceMap);
 
     // Build absolute URLs (works on prod and localhost)
     const envBase = (process.env.NEXT_PUBLIC_SITE_URL || '').trim();
@@ -110,7 +119,8 @@ export async function POST(req: Request) {
       sex: m.sex,
       email: m.email ? String(m.email).toLowerCase().trim() : undefined,
       phone: m.phone || undefined,
-      membership_type: m.membership_type,
+      // Store the type actually charged, so the member record matches the price
+      membership_type: typeForAge(m.membership_type, Number(m.age || 0), priceMap) as MemberType,
       designation: normalizeDesignation(m.designation, i === 0),
     }));
 

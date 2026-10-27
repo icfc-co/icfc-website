@@ -48,25 +48,38 @@ serve(async (req: Request) => {
 
   const { operation, fileName, fileType } = body as any;
 
+  // Writes need a signed-in staff user (same roles as /photo-manager). The anon key is
+  // public, so it is never accepted here.
   const needsAuth = ["upload", "delete"].includes(operation);
   if (needsAuth) {
     const jwt = (req.headers.get("Authorization") || "").replace("Bearer ", "").trim();
-    if (!jwt) {
-      return new Response(JSON.stringify({ error: "Missing token" }), {
+    const { data, error } = jwt ? await supabase.auth.getUser(jwt) : { data: null, error: true };
+    if (error || !data?.user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: corsHeaders,
       });
     }
 
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-    if (jwt !== anonKey) {
-      const { data, error } = await supabase.auth.getUser(jwt);
-      if (error || !data?.user) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401,
-          headers: corsHeaders,
-        });
-      }
+    const asUser = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: `Bearer ${jwt}` } },
+    });
+    const { data: isStaff } = await asUser.rpc("has_any_role", {
+      target_roles: ["admin", "super_admin", "volunteer"],
+    });
+    if (!isStaff) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403,
+        headers: corsHeaders,
+      });
+    }
+
+    if (typeof fileName !== "string" || !fileName || fileName.length > 512 ||
+        fileName.startsWith("/") || fileName.split("/").includes("..")) {
+      return new Response(JSON.stringify({ error: "Invalid fileName" }), {
+        status: 400,
+        headers: corsHeaders,
+      });
     }
   }
 
