@@ -169,8 +169,8 @@ export function MultipleMembershipsNotice({ count }: { count: number }) {
   if (count < 2) return null;
   return (
     <p className="rounded-2xl bg-yellow-50 p-4 text-sm text-yellow-900 ring-1 ring-yellow-200">
-      You have <strong>{count} memberships</strong> on this account. If you only meant to pay once, cancel the one you
-      don&apos;t need below and <a href="/modules/contact" className="font-semibold underline">contact ICFC</a> about a refund.
+      You have <strong>{count} memberships</strong> on this account. If you only want one, cancel the one you
+      don&apos;t need below and <a href="/modules/contact" className="font-semibold underline">contact ICFC</a> if you need assistance.
     </p>
   );
 }
