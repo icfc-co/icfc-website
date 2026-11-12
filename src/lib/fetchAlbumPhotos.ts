@@ -33,20 +33,22 @@ export async function fetchAlbumPhotos(album: string): Promise<ResolvedPhoto[]> 
     return [];
   }
 
-  const out: ResolvedPhoto[] = [];
-
-  for (const p of (data || []) as PhotoRow[]) {
-    let finalUrl = p.url || "";
-    if (!finalUrl && p.s3_key) {
-      try {
-        const signed = await s3ImageService.getImage(p.s3_key);
-        if (signed) finalUrl = signed;
-      } catch (e) {
-        console.warn("[fetchAlbumPhotos] getImage failed:", p.id, p.s3_key, e);
+  // Resolve signed S3 URLs in parallel (one request per photo; sequential was slow)
+  const resolved = await Promise.all(
+    ((data || []) as PhotoRow[]).map(async (p): Promise<ResolvedPhoto | null> => {
+      let finalUrl = p.url || "";
+      if (!finalUrl && p.s3_key) {
+        try {
+          const signed = await s3ImageService.getImage(p.s3_key);
+          if (signed) finalUrl = signed;
+        } catch (e) {
+          console.warn("[fetchAlbumPhotos] getImage failed:", p.id, p.s3_key, e);
+        }
       }
-    }
-    if (finalUrl) out.push({ id: p.id, title: p.title, url: finalUrl, created_at: p.created_at });
-  }
+      return finalUrl ? { id: p.id, title: p.title, url: finalUrl, created_at: p.created_at } : null;
+    })
+  );
+  const out = resolved.filter((x): x is ResolvedPhoto => x !== null);
 
   // Safety: re-sort client-side in case created_at values differ after S3 resolution
   out.sort((a, b) => {
