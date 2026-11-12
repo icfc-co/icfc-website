@@ -1,14 +1,11 @@
-import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
-import { createClient } from '@supabase/supabase-js';
-import Stripe from 'stripe';
+import { NextRequest, NextResponse } from 'next/server';
 import { ageAt, amountFor, loadActivePricing, typeForAge } from '@/lib/membershipPricing';
+import { getAuthUser } from '@/lib/auth-user';
+import { membershipById, stripeClient, RENEW_WINDOW_DAYS } from '@/lib/membership-status';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' });
 
 function computeBaseUrl(req: Request, envBase?: string) {
   const trimmed = (envBase || '').trim();
@@ -18,51 +15,37 @@ function computeBaseUrl(req: Request, envBase?: string) {
   return `${proto}://${host}`;
 }
 
-async function findLatestHouseholdByUserOrEmail(supabase: any, uid: string, email?: string) {
-  let { data: hh } = await supabase
-    .from('membership_households')
-    .select('*')
-    .eq('user_id', uid)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (hh) return hh;
-
-  if (email) {
-    const { data: hhByEmail } = await supabase
-      .from('membership_households')
-      .select('*')
-      .ilike('primary_email', email.trim())
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (hhByEmail) return hhByEmail;
-  }
-  return null;
-}
-
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get: (k) => cookieStore.get(k)?.value,
-          set: (k, v, o) => cookieStore.set(k, v, o),
-          remove: (k, o) => cookieStore.set(k, '', { ...o, maxAge: 0 }),
-        },
-      }
-    );
+    const auth = await getAuthUser(req);
+    if (!auth) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    const { user, service: supabaseAdmin } = auth;
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    const body = await req.json().catch(() => ({} as { household_id?: string }));
+    const state = await membershipById(supabaseAdmin, user, body.household_id);
+    if (!state) return NextResponse.json({ error: 'Membership not found.' }, { status: 404 });
+    // Never start a second subscription, and only renew near or after the end date
+    if (!state.isPrimary) {
+      return NextResponse.json({ error: 'Only the household’s primary contact can renew.' }, { status: 403 });
+    }
+    if (state.autoRenew) {
+      return NextResponse.json({ error: 'Your membership already renews automatically.' }, { status: 409 });
+    }
+    if (state.cancelScheduled) {
+      return NextResponse.json(
+        { error: `Your membership is paid through ${state.endsOn}. Choose "Keep renewing" instead of buying a new one.` },
+        { status: 409 }
+      );
+    }
+    if (!state.canRenew) {
+      return NextResponse.json(
+        { error: `Renewal opens ${RENEW_WINDOW_DAYS} days before your membership ends (${state.endsOn}).` },
+        { status: 409 }
+      );
+    }
+    const hh = state.household;
 
-    const hh = await findLatestHouseholdByUserOrEmail(supabase, user.id, user.email || undefined);
-    if (!hh) return NextResponse.json({ error: 'No membership household found' }, { status: 404 });
-
-    const { data: members, error: memErr } = await supabase
+    const { data: members, error: memErr } = await supabaseAdmin
       .from('membership_members')
       .select('*')
       .eq('household_id', hh.id);
@@ -73,15 +56,10 @@ export async function POST(req: Request) {
     const success_url = new URL('/modules/registration/membership/thanks', base).toString() + '?session_id={CHECKOUT_SESSION_ID}';
     const cancel_url  = new URL('/modules/registration/membership/manage?canceled=1', base).toString(); // fixed
 
-    // Service role: pricing + checkout payloads (guests' payload rows aren't reachable through RLS)
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
     const pricing = await loadActivePricing(supabaseAdmin);
 
     // Age everyone to today and re-price: youth past the youth max age renew as regular
-    const renewed = members.map((m: any) => {
+    const renewed = (members as any[]).map((m: any) => {
       const age = ageAt(Number(m.age || 0), m.age_updated_at ?? m.created_at);
       const membership_type = typeForAge(m.membership_type, age, pricing);
       return { ...m, age, membership_type, price_cents: amountFor(membership_type, age, pricing) };
@@ -130,7 +108,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Failed to persist renewal payload.' }, { status: 500 });
     }
 
-    const session = await stripe.checkout.sessions.create({
+    const session = await stripeClient().checkout.sessions.create({
       mode: 'subscription',
       success_url,
       cancel_url,

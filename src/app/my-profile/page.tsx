@@ -5,6 +5,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import countryList from 'react-select-country-list';
 import { CheckCircleIcon, EnvelopeIcon, PencilSquareIcon, UserCircleIcon, UsersIcon } from '@heroicons/react/24/outline';
 import { supabase } from '@/lib/supabaseClient';
+import {
+  ManagedMembership, MembershipStatusActions, MultipleMembershipsNotice, useMemberships,
+} from '@/components/membership/MembershipStatus';
 
 type Profile = {
   name: string;
@@ -69,9 +72,6 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!res.ok) throw Object.assign(new Error(json?.error || `Request failed (${res.status})`), { errors: json?.errors });
   return json as T;
 }
-
-const fmtDate = (d: string | null) =>
-  d ? new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
 
 const input = 'mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-gray-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20';
 const label = 'block text-sm font-medium text-gray-700';
@@ -295,6 +295,10 @@ function LoginEmail({ email, pending }: { email: string | null; pending: string 
 /* --------------------------------- Memberships -------------------------------- */
 
 function Memberships({ households, onSaved }: { households: Household[]; onSaved: () => void }) {
+  const { memberships, reload } = useMemberships();
+  const [notice, setNotice] = useState('');
+  const statusOf = (id: string): ManagedMembership | undefined => memberships?.find((m) => m.id === id);
+
   if (!households.length) {
     return (
       <div className={card}>
@@ -311,23 +315,26 @@ function Memberships({ households, onSaved }: { households: Household[]; onSaved
 
   return (
     <>
-      {households.map((h) => (
+      {notice && <p className="rounded-2xl bg-white p-4 text-sm font-medium text-primary shadow-sm ring-1 ring-black/5">{notice}</p>}
+      <MultipleMembershipsNotice count={households.length} />
+      {households.map((h, i) => (
         <div key={h.id} className={card}>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="flex items-center gap-2 font-heading text-xl font-bold">
-                <UsersIcon className="h-6 w-6 text-primary" aria-hidden /> My membership
+                <UsersIcon className="h-6 w-6 text-primary" aria-hidden /> {households.length > 1 ? `Membership ${i + 1}` : 'My membership'}
               </h2>
-              <p className="mt-1 text-sm text-gray-600">
-                Household of {h.primary_name}
-                {h.end_date && <> · valid until {fmtDate(h.end_date)}</>}
-                {h.subscription_status === 'active' && <> · renews automatically</>}
-              </p>
+              <p className="mt-1 text-sm text-gray-600">Household of {h.primary_name}</p>
             </div>
-            {h.isPrimary && (
-              <Link href="/modules/registration/membership/manage" className="rounded-full border border-primary px-4 py-2 text-sm font-semibold text-primary hover:bg-green-50">
-                Manage / renew
-              </Link>
+            <Link href={`/modules/registration/membership/manage#membership-${h.id}`} className="rounded-full border border-primary px-4 py-2 text-sm font-semibold text-primary hover:bg-green-50">
+              Details
+            </Link>
+          </div>
+          <div className="mt-4">
+            {statusOf(h.id) ? (
+              <MembershipStatusActions m={statusOf(h.id)!} onChanged={(n) => { setNotice(n); reload(); onSaved(); }} />
+            ) : (
+              <p className="text-sm text-gray-500">{memberships ? '' : 'Checking membership status…'}</p>
             )}
           </div>
           <ul className="mt-5 divide-y divide-gray-100">

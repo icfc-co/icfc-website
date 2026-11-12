@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth-user';
-import { HouseholdRow, MemberRow, PHONE_OK, householdsFor, isActive, isPrimaryOf, likeExact, norm } from './shared';
+import { HouseholdRow, MemberRow, PHONE_OK, householdsFor, isActive, isPrimaryOf, likeExact, norm } from '@/lib/membership-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +18,9 @@ export async function GET(req: NextRequest) {
     householdsFor(service, user),
   ]);
 
-  const active = households.filter(isActive).sort((a, b) => b.created_at.localeCompare(a.created_at));
+  // Same set as Manage Membership: current households, plus any with a live subscription
+  const liveSub = (h: HouseholdRow) => !!h.stripe_subscription_id && ['active', 'trialing', 'past_due'].includes(h.subscription_status ?? '');
+  const active = households.filter((h) => isActive(h) || liveSub(h)).sort((a, b) => b.created_at.localeCompare(a.created_at));
   const { data: members } = active.length
     ? await service
         .from('membership_members')
