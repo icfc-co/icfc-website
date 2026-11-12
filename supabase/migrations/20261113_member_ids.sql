@@ -28,6 +28,11 @@ ALTER TABLE public.membership_members
   ADD COLUMN IF NOT EXISTS member_uid smallint REFERENCES public.member_ids(member_uid);
 CREATE INDEX IF NOT EXISTS membership_members_member_uid_idx ON public.membership_members (member_uid);
 
+-- Households created by mistake (e.g. a family registered twice). Kept for the
+-- payment record but left out of the members directory.
+ALTER TABLE public.membership_households
+  ADD COLUMN IF NOT EXISTS is_duplicate boolean NOT NULL DEFAULT false;
+
 -- ---------------------------------------------------------------------------
 -- 2) Number assignment
 -- ---------------------------------------------------------------------------
@@ -53,7 +58,7 @@ begin
   where m.member_uid is not null
     and lower(regexp_replace(btrim(m.name), '\s+', ' ', 'g')) = v_name
     and nullif(lower(btrim(coalesce(nullif(m.email, ''), h.primary_email, ''))), '') is not distinct from v_email
-  order by (coalesce(h.status, '') = 'duplicate'), m.created_at desc
+  order by coalesce(h.is_duplicate, false), m.created_at desc
   limit 1;
   if v_uid is not null then
     return v_uid;
@@ -125,14 +130,14 @@ AS $$
   FROM public.membership_members m
   WHERE NOT EXISTS (
       SELECT 1 FROM public.membership_households d
-      WHERE d.id = m.household_id AND d.status = 'duplicate'
+      WHERE d.id = m.household_id AND d.is_duplicate
     )
     AND (
       p_purchased_from IS NULL
       OR m.household_id IN (
         SELECT DISTINCT ON (COALESCE(LOWER(TRIM(h.primary_email)), h.id::text)) h.id
         FROM public.membership_households h
-        WHERE h.status IS DISTINCT FROM 'duplicate'
+        WHERE NOT h.is_duplicate
           AND (
             (COALESCE(p_qualify, 'any') IN ('any', 'purchase') AND h.created_at >= p_purchased_from)
             OR (COALESCE(p_qualify, 'any') IN ('any', 'subscription') AND h.subscription_status = 'active')
@@ -148,7 +153,7 @@ $$;
 --    (Its Stripe subscription must be cancelled in Stripe separately.)
 -- ---------------------------------------------------------------------------
 UPDATE public.membership_households
-SET status = 'duplicate'
+SET is_duplicate = true
 WHERE id = 'd74c8821-d752-4f5f-9904-0517684e9a75';
 
 -- ---------------------------------------------------------------------------
@@ -731,7 +736,7 @@ SET member_uid = public.assign_member_uid(m.name, coalesce(nullif(m.email, ''), 
 FROM public.membership_households h
 WHERE h.id = m.household_id
   AND m.member_uid IS NULL
-  AND h.status IS DISTINCT FROM 'duplicate'
+  AND NOT h.is_duplicate
   AND (h.created_at >= '2026-09-01' OR h.subscription_status = 'active');
 
 COMMIT;
