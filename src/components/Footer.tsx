@@ -1,94 +1,120 @@
 'use client';
 import Link from 'next/link';
-import { FaInstagram, FaFacebookF, FaYoutube } from 'react-icons/fa';
+import { MapPinIcon, PhoneIcon, EnvelopeIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
+import { SITE, MAPS } from '@/lib/site';
+import SocialIcons from './SocialIcons';
+
+const QUICK_LINKS = [
+  { name: 'About ICFC', href: '/about' },
+  { name: 'Prayer Times', href: '/modules/prayer-times' },
+  { name: 'Community Calendar', href: '/modules/community/events' },
+  { name: 'Donate', href: '/donate' },
+  { name: 'Membership', href: '/modules/registration/membership' },
+  { name: 'Contact Us', href: '/modules/contact' },
+];
+
+const SERVICES = [
+  { name: 'Ask the Imam', href: '/modules/services/ask-imam' },
+  { name: 'Newcomer Support', href: '/modules/services/newcomer-support' },
+  { name: 'Social Services', href: '/modules/services/social-services' },
+  { name: 'Halal Kitchen', href: '/modules/services/halal-kitchen' },
+  { name: 'Utilities Pledge', href: '/modules/community/utilities-pledge' },
+  { name: 'Masjid Expansion', href: '/expansion' },
+];
 
 export default function Footer() {
   return (
-    <footer className="bg-primary text-white font-body">
-      <div className="max-w-7xl mx-auto px-6 py-10 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
-        {/* ICFC Logo/Intro */}
-        <div>
-          <h2 className="font-title text-2xl text-secondary mb-2">ICFC</h2>
-          <p className="text-sm">
-            Islamic Center of Fort Collins — Serving the community with faith, education, and service.
+    <footer className="bg-[#004d00] font-body text-white">
+      <div className="mx-auto grid max-w-7xl grid-cols-2 gap-x-6 gap-y-10 px-4 py-12 sm:px-6 lg:grid-cols-[1.2fr_0.8fr_0.9fr_1fr_1.3fr] lg:gap-x-8 lg:px-8">
+        {/* About */}
+        <div className="col-span-2 lg:col-span-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/images/icfc-logo-white.png" alt="Islamic Center of Fort Collins" width={600} height={366} className="h-20 w-auto" />
+          <p className="mt-4 text-sm leading-relaxed text-white/80">
+            Serving the Muslim community of Fort Collins with faith, education and service.
           </p>
-
-          {/* Social Icons */}
-          <div className="flex space-x-4 mt-4">
-            <a href="https://www.instagram.com/islamic_center_of_fort_collins/?hl=en" target="_blank" rel="noopener noreferrer">
-              <FaInstagram className="text-secondary hover:text-white text-xl" />
-            </a>
-            <a href="https://www.facebook.com/icfcco/" target="_blank" rel="noopener noreferrer">
-              <FaFacebookF className="text-secondary hover:text-white text-xl" />
-            </a>
-            <a href="https://www.youtube.com/@icfcco" target="_blank" rel="noopener noreferrer">
-              <FaYoutube className="text-secondary hover:text-white text-xl" />
-            </a>
-          </div>
+          <SocialIcons className="mt-5 text-secondary" iconClass="h-5 w-5" />
         </div>
 
-        {/* Quick Links */}
+        {/* Quick links */}
         <div>
-          <h3 className="font-heading text-lg text-secondary mb-2">Quick Links</h3>
-          <ul className="space-y-1 text-sm">
-            <li><Link href="/about">About</Link></li>
-            <li><Link href="/modules/contact">Contact</Link></li>
-            <li><Link href="/donate">Donate</Link></li>
-            <li><Link href="/login">Login</Link></li>
+          <h3 className="font-heading text-sm font-semibold uppercase tracking-wider text-secondary">Quick Links</h3>
+          <ul className="mt-4 space-y-2 text-sm">
+            {QUICK_LINKS.map((l) => (
+              <li key={l.href}>
+                <Link href={l.href} className="text-white/85 transition hover:text-secondary">{l.name}</Link>
+              </li>
+            ))}
           </ul>
         </div>
 
         {/* Services */}
         <div>
-          <h3 className="font-heading text-lg text-secondary mb-2">Services</h3>
-          <ul className="space-y-1 text-sm">
-            <li><Link href="/modules/services/newcomer-support">Newcomer Support</Link></li>
-            <li><Link href="/modules/services/ask-imam">Ask Imam</Link></li>
-            <li><Link href="/modules/registration/membership">Membership</Link></li>
+          <h3 className="font-heading text-sm font-semibold uppercase tracking-wider text-secondary">Services &amp; Giving</h3>
+          <ul className="mt-4 space-y-2 text-sm">
+            {SERVICES.map((l) => (
+              <li key={l.href}>
+                <Link href={l.href} className="text-white/85 transition hover:text-secondary">{l.name}</Link>
+              </li>
+            ))}
           </ul>
         </div>
 
-        {/* Contact + Newsletter */}
-        <div>
-          <h3 className="font-heading text-lg text-secondary mb-2">Contact</h3>
-          <p className="text-sm">📧 info@icfc.org</p>
-          <p className="text-sm">📞 +1 (970) 221-2425</p>
-          <p className="text-sm mt-1">925 West Lake Street, Fort Collins, CO 80521</p>
+        {/* Visit us */}
+        <div className="col-span-2 lg:col-span-1">
+          <h3 className="font-heading text-sm font-semibold uppercase tracking-wider text-secondary">Visit Us</h3>
+          <ul className="mt-4 space-y-3 text-sm">
+            <li>
+              <a href={MAPS.directions} target="_blank" rel="noopener noreferrer" className="group flex gap-2 text-white/85 hover:text-secondary">
+                <MapPinIcon className="mt-0.5 h-5 w-5 shrink-0 text-secondary" aria-hidden />
+                <span>
+                  {SITE.address}
+                  <br />
+                  {SITE.cityLine}
+                </span>
+              </a>
+            </li>
+            <li>
+              <a href={SITE.phoneHref} className="flex gap-2 text-white/85 hover:text-secondary">
+                <PhoneIcon className="h-5 w-5 shrink-0 text-secondary" aria-hidden /> {SITE.phone}
+              </a>
+            </li>
+            <li>
+              <a href={`mailto:${SITE.email}`} className="flex gap-2 text-white/85 hover:text-secondary">
+                <EnvelopeIcon className="h-5 w-5 shrink-0 text-secondary" aria-hidden /> {SITE.email}
+              </a>
+            </li>
+          </ul>
+          <a
+            href={MAPS.directions}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-5 inline-flex items-center gap-2 rounded-full bg-secondary px-5 py-2 text-sm font-semibold text-gray-900 transition hover:brightness-95"
+          >
+            Get directions <ArrowTopRightOnSquareIcon className="h-4 w-4" aria-hidden />
+          </a>
+        </div>
 
-          {/* Newsletter Form */}
-          <form className="mt-4">
-            <label className="block text-sm mb-1" htmlFor="newsletter">Subscribe to Newsletter</label>
-            <div className="flex">
-              <input
-                type="email"
-                id="newsletter"
-                placeholder="Enter your email"
-                className="w-full px-2 py-1 rounded-l bg-white text-black text-sm focus:outline-none"
-              />
-              <button
-                type="submit"
-                className="bg-secondary hover:bg-yellow-400 text-black font-medium px-3 rounded-r text-sm"
-              >
-                Subscribe
-              </button>
-            </div>
-          </form>
+        {/* Small map, far right on large screens */}
+        <div className="col-span-2 lg:col-span-1">
+          <div className="h-48 overflow-hidden rounded-xl ring-1 ring-white/20 lg:h-full lg:min-h-[13rem]">
+            <iframe
+              title="Map to the Islamic Center of Fort Collins"
+              src={MAPS.embed}
+              className="block h-full w-full border-0"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+          </div>
         </div>
       </div>
 
-      {/* Google Map */}
-      <div className="w-full">
-        <iframe
-          title="ICFC Location"
-          src="https://maps.google.com/maps?q=Islamic%20Center%20of%20Fort%20Collins&t=&z=13&ie=UTF8&iwloc=&output=embed"
-          className="w-full h-64 border-0"
-          loading="lazy"
-        ></iframe>
-      </div>
-
-      {/* Bottom Bar */}
-      <div className="text-center py-4 border-t border-white/20 text-xs">
-        &copy; {new Date().getFullYear()} Islamic Center of Fort Collins. All rights reserved.
+      {/* Bottom bar */}
+      <div className="border-t border-white/15">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 py-5 text-xs text-white/70 sm:flex-row sm:px-6 lg:px-8">
+          <p>&copy; {new Date().getFullYear()} {SITE.name}. All rights reserved.</p>
+          <p>ICFC is a 501(c)(3) nonprofit organization. Donations may be tax-deductible.</p>
+        </div>
       </div>
     </footer>
   );

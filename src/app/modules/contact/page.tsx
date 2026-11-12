@@ -152,7 +152,7 @@ export default function ContactPage() {
                   <a className="underline" href="mailto:info@icfc.org">info@icfc.org</a>
                 </p>
                 <div className="flex gap-3 pt-1">
-                  <a className="underline" href="https://www.instagram.com/islamic_center_of_fort_collins/?hl=en" target="_blank" rel="noreferrer">Instagram</a>
+                  <a className="underline" href="https://www.instagram.com/icfc_co/" target="_blank" rel="noreferrer">Instagram</a>
                   <a className="underline" href="https://www.facebook.com/icfcco/" target="_blank" rel="noreferrer">Facebook</a>
                   <a className="underline" href="https://www.youtube.com/@icfcco" target="_blank" rel="noreferrer">YouTube</a>
                 </div>
