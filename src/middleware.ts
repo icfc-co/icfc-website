@@ -5,6 +5,7 @@ import { createServerClient } from "@supabase/ssr";
 
 const STAFF = ["super_admin", "admin", "volunteer"];
 const ADMINS = ["super_admin", "admin"];
+const MEMBERS = ["member", ...STAFF];
 
 // First matching prefix wins. null = any signed-in user.
 // Volunteers reach messages and social services from the volunteer dashboard.
@@ -12,6 +13,7 @@ const RULES: [prefix: string, roles: string[] | null][] = [
   ["/super-admin", ["super_admin"]],
   ["/admin/messages", STAFF],
   ["/admin/social-services", STAFF],
+  ["/admin/support-network", STAFF],
   ["/admin", ADMINS],
   ["/volunteer", STAFF],
   ["/photo-manager", STAFF],
@@ -20,6 +22,7 @@ const RULES: [prefix: string, roles: string[] | null][] = [
   ["/api/debug", ["super_admin"]],
   ["/teacher", null],
   ["/student", null],
+  ["/member/support-network", MEMBERS],
   ["/member", null],
   ["/user", null],
   ["/my-profile", null],

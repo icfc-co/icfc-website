@@ -8,6 +8,7 @@ import AdminMessagesButton from '@/components/admin/AdminMessagesButton';
 import PhotoManagerButton from '@/components/admin/PhotoManagerButton';
 import DonationsManagerButton from '@/components/admin/DonationsManagerButton';
 import SocialServiceManagerButton from '@/components/admin/SocialServiceManagerButton';
+import SupportNetworkButton from '@/components/admin/SupportNetworkButton';
 import RamadanVolunteersButton from '@/components/admin/RamadanVolunteersButton';
 
 export default function AdminDashboard() {
@@ -65,6 +66,9 @@ export default function AdminDashboard() {
        </div>
        <div className="mt-6">
           <SocialServiceManagerButton />
+       </div>
+       <div className="mt-6">
+          <SupportNetworkButton />
        </div>
        
         <div className="mt-6">
