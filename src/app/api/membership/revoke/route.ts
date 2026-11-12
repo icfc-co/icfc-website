@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth-user';
-import { membershipFor, stripeClient } from '@/lib/membership-status';
+import { membershipById, stripeClient } from '@/lib/membership-status';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// POST { action: 'cancel' | 'resume' }
+// POST { household_id, action: 'cancel' | 'resume' }
 //  - Auto-renewing membership: cancel (or undo cancelling) the Stripe subscription at the
 //    end of the paid period. Membership stays active until then; the webhook syncs status.
 //  - One-time membership: cancel ends it today (status 'revoked').
@@ -14,13 +14,13 @@ export async function POST(req: NextRequest) {
     const auth = await getAuthUser(req);
     if (!auth) return NextResponse.json({ error: 'Please sign in.' }, { status: 401 });
 
-    const state = await membershipFor(auth.service, auth.user);
-    if (!state) return NextResponse.json({ error: 'No membership found.' }, { status: 404 });
+    const body = await req.json().catch(() => ({} as { action?: string; household_id?: string }));
+    const state = await membershipById(auth.service, auth.user, body.household_id);
+    if (!state) return NextResponse.json({ error: 'Membership not found.' }, { status: 404 });
     if (!state.isPrimary) {
       return NextResponse.json({ error: 'Only the household’s primary contact can change the membership.' }, { status: 403 });
     }
 
-    const body = await req.json().catch(() => ({} as { action?: string }));
     const action = body.action === 'resume' ? 'resume' : 'cancel';
     const sub = state.subscription;
 

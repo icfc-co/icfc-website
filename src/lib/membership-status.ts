@@ -1,4 +1,4 @@
-// Server-only: the membership a signed-in user manages, and what they may do with it.
+// Server-only: the memberships a signed-in user manages, and what they may do with each.
 import Stripe from 'stripe';
 import { SupabaseClient, User } from '@supabase/supabase-js';
 import { HouseholdRow, householdsFor, isActive, isPrimaryOf } from '@/lib/membership-access';
@@ -32,17 +32,32 @@ export type MembershipState = {
 const today = () => new Date().toISOString().slice(0, 10);
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5);
 
-/** Newest active household (else newest of any), with live Stripe subscription details. */
-export async function membershipFor(service: SupabaseClient, user: User): Promise<MembershipState | null> {
-  const list = (await householdsFor(service, user)).sort((a, b) => b.created_at.localeCompare(a.created_at));
-  if (!list.length) return null;
-  // Prefer an active household with a live subscription: if someone also bought a
-  // one-time membership, they must still see (and be able to cancel) the renewal.
-  const household =
-    list.find((h) => isActive(h) && !!h.stripe_subscription_id && LIVE_SUB.includes(h.subscription_status ?? '')) ??
-    list.find(isActive) ??
-    list[0];
+const hasLiveSub = (h: HouseholdRow) => !!h.stripe_subscription_id && LIVE_SUB.includes(h.subscription_status ?? '');
 
+/**
+ * Every current membership the user has (a person may hold a subscription and a
+ * one-time purchase, or two subscriptions), each with its own status and actions.
+ * Subscriptions first, then newest. With nothing current, the most recent one.
+ */
+export async function membershipsFor(service: SupabaseClient, user: User): Promise<MembershipState[]> {
+  const list = (await householdsFor(service, user)).sort((a, b) => b.created_at.localeCompare(a.created_at));
+  if (!list.length) return [];
+  const current = list.filter((h) => isActive(h) || hasLiveSub(h));
+  const chosen = (current.length ? current : [list[0]]).sort(
+    (a, b) => Number(hasLiveSub(b)) - Number(hasLiveSub(a)) || b.created_at.localeCompare(a.created_at)
+  );
+  return Promise.all(chosen.map((h) => stateOf(h, user)));
+}
+
+/** One of the user's memberships by household id, or null if it isn't theirs. */
+export async function membershipById(service: SupabaseClient, user: User, householdId: unknown) {
+  if (typeof householdId !== 'string') return null;
+  const list = await householdsFor(service, user);
+  const h = list.find((x) => x.id === householdId);
+  return h ? stateOf(h, user) : null;
+}
+
+async function stateOf(household: HouseholdRow, user: User): Promise<MembershipState> {
   let subscription: Stripe.Subscription | null = null;
   if (household.stripe_subscription_id) {
     try {

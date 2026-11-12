@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ageAt, amountFor, loadActivePricing, typeForAge } from '@/lib/membershipPricing';
 import { getAuthUser } from '@/lib/auth-user';
-import { membershipFor, stripeClient, RENEW_WINDOW_DAYS } from '@/lib/membership-status';
+import { membershipById, stripeClient, RENEW_WINDOW_DAYS } from '@/lib/membership-status';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,8 +21,9 @@ export async function POST(req: NextRequest) {
     if (!auth) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     const { user, service: supabaseAdmin } = auth;
 
-    const state = await membershipFor(supabaseAdmin, user);
-    if (!state) return NextResponse.json({ error: 'No membership household found' }, { status: 404 });
+    const body = await req.json().catch(() => ({} as { household_id?: string }));
+    const state = await membershipById(supabaseAdmin, user, body.household_id);
+    if (!state) return NextResponse.json({ error: 'Membership not found.' }, { status: 404 });
     // Never start a second subscription, and only renew near or after the end date
     if (!state.isPrimary) {
       return NextResponse.json({ error: 'Only the household’s primary contact can renew.' }, { status: 403 });
