@@ -32,7 +32,7 @@ function eventDays(e: EventRow) {
 
 export default function EventsPage() {
   const [events, setEvents] = useState<EventRow[] | null>(null);
-  const [view, setView] = useState<View>('upcoming');
+  const [view, setView] = useState<View>('month');
   const [category, setCategory] = useState<string>('all');
   const [showPast, setShowPast] = useState(false);
   const [{ y, m }, setMonth] = useState(() => {
@@ -106,7 +106,7 @@ export default function EventsPage() {
         {/* Controls */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="inline-flex rounded-xl border border-gray-200 p-1" role="tablist">
-            {(['upcoming', 'month'] as View[]).map((v) => (
+            {(['month', 'upcoming'] as View[]).map((v) => (
               <button
                 key={v}
                 role="tab"
