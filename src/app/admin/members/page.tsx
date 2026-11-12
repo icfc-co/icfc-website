@@ -5,6 +5,7 @@ import { createBrowserClient } from "@supabase/ssr";
 
 export type Member = {
   id: string;
+  member_uid?: number | null;
   household_id?: string | null;
   name?: string | null;
   email?: string | null;
@@ -193,7 +194,7 @@ export default function AdminMembersDirectory() {
         // otherwise a LEFT join keeps members without a household
         const filterByHousehold = Boolean(primaryName.trim() || primaryEmail.trim());
         const selectCols = `
-          id,name,email,phone,age,sex,membership_type,designation,household_id,created_at,
+          id,member_uid,name,email,phone,age,sex,membership_type,designation,household_id,created_at,
           household:${HH_REL}${filterByHousehold ? "!inner" : ""}(
             id,primary_name,primary_email,primary_phone,created_at,subscription_status,current_period_end
           )
@@ -221,7 +222,10 @@ export default function AdminMembersDirectory() {
         const s = search.trim();
         if (s) {
           const like = `%${s}%`;
-          query = query.or([`name.ilike.${like}`, `email.ilike.${like}`].join(","));
+          const or = [`name.ilike.${like}`, `email.ilike.${like}`];
+          // A 4-digit search also matches the member ID
+          if (/^\d{1,4}$/.test(s)) or.push(`member_uid.eq.${Number(s)}`);
+          query = query.or(or.join(","));
         }
 
         if (selectedMemberTypes.length) {
@@ -289,6 +293,7 @@ export default function AdminMembersDirectory() {
 
   function exportCSV() {
     const header = [
+      "Member ID",
       "Name",
       "Email",
       "Age",
@@ -306,6 +311,7 @@ export default function AdminMembersDirectory() {
     ];
     const lines = rows.map((m) =>
       [
+        m.member_uid ?? "",
         m.name || "",
         m.email || "",
         m.age == null ? "" : ageLabel(m.age),
@@ -367,10 +373,10 @@ export default function AdminMembersDirectory() {
       <section className="grid grid-cols-1 gap-4 rounded-2xl border bg-white p-4 shadow-sm sm:grid-cols-3 lg:grid-cols-4">
         {/* Search */}
         <div className="col-span-1 sm:col-span-1 lg:col-span-2">
-          <label className="block text-xs font-medium text-gray-600">Search (name or email)</label>
+          <label className="block text-xs font-medium text-gray-600">Search (name, email or member ID)</label>
           <input
             type="text"
-            placeholder="e.g., Adnan Raza or adnan@…"
+            placeholder="Name, email or member ID"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             className="mt-1 w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring"
@@ -507,6 +513,7 @@ export default function AdminMembersDirectory() {
         <table className="min-w-full text-left text-sm">
           <thead>
             <tr className="border-b bg-gray-50 text-gray-600">
+              <th className="px-4 py-3">Member ID</th>
               <th className="px-4 py-3">Name</th>
               <th className="px-4 py-3">Email</th>
               <th className="px-4 py-3">Age</th>
@@ -525,22 +532,23 @@ export default function AdminMembersDirectory() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={13} className="px-4 py-6 text-center text-gray-500">Loading members…</td>
+                <td colSpan={14} className="px-4 py-6 text-center text-gray-500">Loading members…</td>
               </tr>
             )}
             {!loading && error && (
               <tr>
-                <td colSpan={13} className="px-4 py-6 text-center text-red-600">{error}</td>
+                <td colSpan={14} className="px-4 py-6 text-center text-red-600">{error}</td>
               </tr>
             )}
             {!loading && !error && rows.length === 0 && (
               <tr>
-                <td colSpan={13} className="px-4 py-6 text-center text-gray-500">No members found.</td>
+                <td colSpan={14} className="px-4 py-6 text-center text-gray-500">No members found.</td>
               </tr>
             )}
             {!loading && !error &&
               rows.map((m) => (
                 <tr key={m.id} className="border-b last:border-0">
+                  <td className="px-4 py-3 font-mono font-semibold">{m.member_uid ?? "—"}</td>
                   <td className="px-4 py-3 font-medium">{m.name || "—"}</td>
                   <td className="px-4 py-3 text-blue-700">{m.email || "—"}</td>
                   <td className={classNames("px-4 py-3", !(m.age && m.age > 0) && "text-gray-400")}>{ageLabel(m.age)}</td>
