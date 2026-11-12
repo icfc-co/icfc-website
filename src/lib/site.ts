@@ -19,7 +19,7 @@ export const MAPS = {
 };
 
 export const SOCIAL = [
-  { name: 'Instagram', href: 'https://www.instagram.com/islamic_center_of_fort_collins/' },
+  { name: 'Instagram', href: 'https://www.instagram.com/icfc_co/' },
   { name: 'Facebook', href: 'https://www.facebook.com/icfcco/' },
   { name: 'YouTube', href: 'https://www.youtube.com/@icfcco' },
 ] as const;
