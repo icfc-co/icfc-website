@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { resolveDonationEvent } from '@/lib/event-donation';
 
 export const runtime = 'nodejs';
 
@@ -24,11 +25,15 @@ export async function POST(req: NextRequest) {
     transferDate = null,     // yyyy-mm-dd or null
     proofUrl = null,         // optional URL
     last4,                   // Zelle ref last 4 (REQUIRED)
+    eventId = null,          // optional: gift for a calendar event
   } = body || {};
 
   // basic validation
   if (!amountCents || amountCents < 100) return bad('Amount must be at least $1.00');
-  if (!fund) return bad('Missing fund');
+  let event;
+  try { event = await resolveDonationEvent(eventId); }
+  catch (e) { return bad((e as Error).message); }
+  if (!fund && !event) return bad('Missing fund');
   if (!last4 || String(last4).trim().length < 3) return bad('Zelle reference last 4 is required');
 
   // service-role server client (safe on the server)
@@ -45,7 +50,8 @@ export async function POST(req: NextRequest) {
       status: 'pending',
       amount_cents: amountCents,
       currency: 'usd',
-      fund,
+      fund: event ? 'event' : fund,
+      ...(event ? { event_id: event.id } : {}),
       recurrence: 'one_time',
       donor_name: donorName,
       donor_email: donorEmail,

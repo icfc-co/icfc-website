@@ -1,5 +1,16 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { resolveDonationEvent } from "@/lib/event-donation";
+
+// Shown on the Stripe payment page
+const FUND_LABELS: Record<string, string> = {
+  general: "Masjid Expenses (General)",
+  zakat: "Zakat",
+  cemetery: "Cemetery",
+  imam_salary: "Imam/Alim Salary",
+  membership: "Membership",
+  other: "Other",
+};
 
 export async function POST(req: Request) {
   const stripeSecret = process.env.STRIPE_SECRET_KEY;
@@ -29,6 +40,18 @@ export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({} as any));
 
+    // Gift for a calendar event: the event must exist and accept donations
+    let event: Awaited<ReturnType<typeof resolveDonationEvent>> = null;
+    try {
+      event = await resolveDonationEvent((body as any)?.eventId);
+    } catch (e) {
+      return NextResponse.json({ error: (e as Error).message }, { status: 400 });
+    }
+    const fund = event ? "event" : String((body as any)?.fund ?? "membership");
+    const productName = event
+      ? `Donation for ${event.title}`
+      : `Donation to ICFC — ${FUND_LABELS[fund] ?? fund.replace(/_/g, " ")}`;
+
     // No login check — userId is optional pass-through from client
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
@@ -38,7 +61,7 @@ export async function POST(req: Request) {
         {
           price_data: {
             currency: "usd",
-            product_data: { name: "ICFC Annual Membership" },
+            product_data: { name: productName },
             unit_amount: Number((body as any)?.amountCents ?? 5000),
           },
           quantity: 1,
@@ -46,8 +69,9 @@ export async function POST(req: Request) {
       ],
       customer_email: (body as any)?.donorEmail || undefined,
       metadata: {
-        fund: String((body as any)?.fund ?? "membership"),
-        recurrence: String((body as any)?.recurrence ?? "one_time"),
+        fund,
+        event_id: event?.id ?? "",
+        recurrence: event ? "one_time" : String((body as any)?.recurrence ?? "one_time"),
         donorName: String((body as any)?.donorName ?? ""),
         donorEmail: String((body as any)?.donorEmail ?? ""),
         userId: "", // never trust a client-supplied user id (the donate form doesn't send one)

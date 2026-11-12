@@ -410,6 +410,7 @@ export async function POST(req: Request) {
         const currency = s.currency ?? "usd";
         const payment_intent_id = typeof s.payment_intent === "string" ? s.payment_intent : null;
         const checkout_session_id = s.id;
+        const event_id = fund === "event" && isUuid(meta.event_id) ? (meta.event_id as string) : null;
 
         const d = await admin.from("donations").upsert(
           {
@@ -418,6 +419,7 @@ export async function POST(req: Request) {
             amount_cents,
             currency,
             fund,
+            ...(event_id ? { event_id } : {}), // only event gifts touch the column
             recurrence,
             note,
             donor_name: donorName,

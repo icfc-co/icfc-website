@@ -1,7 +1,9 @@
 ﻿'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabaseClient';
 
 type Method = 'stripe' | 'zelle' | 'bank';
 type Recurrence = 'one_time' | 'monthly';
@@ -59,6 +61,29 @@ export default function DonatePage() {
 
   const [submitting, setSubmitting] = useState(false);
 
+  // Coming from a calendar event's "Donate for this event" button: /donate?event=<id>
+  const [event, setEvent] = useState<{ id: string; title: string } | null>(null);
+  const [eventError, setEventError] = useState('');
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('event');
+    if (!id) return;
+    supabase
+      .from('events')
+      .select('id, title, status, donations_enabled')
+      .eq('id', id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data && data.status === 'published' && data.donations_enabled) {
+          setEvent({ id: data.id, title: data.title });
+          setRecurrence('one_time');
+        } else {
+          setEventError('That event is not accepting donations. You can still give to any fund below.');
+        }
+      });
+  }, []);
+  const eventId = event?.id ?? null;
+  const thanksFund = encodeURIComponent(event ? event.title : fund);
+
   const amountCents = typeof amount === 'number' ? Math.round(amount * 100) : 0;
   const zelleEmail = useMemo(() => zelleEmailForFund(fund), [fund]);
 
@@ -79,7 +104,7 @@ export default function DonatePage() {
       const res  = await fetch('/api/stripe/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amountCents, fund, recurrence, donorEmail, donorName, note }),
+        body: JSON.stringify({ amountCents, fund, recurrence, donorEmail, donorName, note, eventId }),
       });
       const json = await safeJson(res);
       if (res.ok && json?.url) {
@@ -113,13 +138,14 @@ export default function DonatePage() {
           transferDate: transferDateZ || null,
           proofUrl: proofUrlZ || null,
           last4: last4 || null,
+          eventId,
         }),
       });
       const json = await safeJson(res);
       if (!res.ok) return alert(json?.error || 'Error submitting confirmation.');
 
       // Redirect to thank-you page (no alerts)
-      router.replace(`/donate/thanks?m=zelle&a=${amountCents}&f=${encodeURIComponent(fund)}`);
+      router.replace(`/donate/thanks?m=zelle&a=${amountCents}&f=${thanksFund}`);
     } catch (e: any) {
       alert(e?.message || 'Network error.');
     } finally {
@@ -146,12 +172,13 @@ export default function DonatePage() {
           transferDate: transferDateB || null,
           proofUrl: proofUrlB || null,
           transactionId,
+          eventId,
         }),
       });
       const json = await safeJson(res);
       if (!res.ok) return alert(json?.error || 'Error submitting confirmation.');
 
-      router.replace(`/donate/thanks?m=bank&a=${amountCents}&f=${encodeURIComponent(fund)}`);
+      router.replace(`/donate/thanks?m=bank&a=${amountCents}&f=${thanksFund}`);
     } catch (e: any) {
       alert(e?.message || 'Network error.');
     } finally {
@@ -164,6 +191,17 @@ export default function DonatePage() {
       <section className="max-w-3xl mx-auto px-4 py-12">
         <h1 className="font-[Montserrat] text-4xl font-bold mb-2">Support ICFC</h1>
         <p className="text-white/80 mb-8">Choose Stripe, Zelle, or Bank (ACH). JazakAllahu khairan.</p>
+
+        {event && (
+          <div className="mb-6 rounded-2xl bg-[#006400] p-4">
+            <p className="text-sm text-white/80">You are donating for</p>
+            <p className="text-xl font-semibold">{event.title}</p>
+            <Link href="/donate" onClick={() => setEvent(null)} className="mt-1 inline-block text-sm text-white/80 underline">
+              Give to a different fund instead
+            </Link>
+          </div>
+        )}
+        {eventError && <p className="mb-6 rounded-2xl bg-white/10 p-4 text-sm">{eventError}</p>}
 
         {/* Tabs */}
         <div className="grid grid-cols-3 gap-2 mb-6">
@@ -198,18 +236,18 @@ export default function DonatePage() {
           />
         </div>
 
-        {/* Funds */}
-        <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {/* Funds (an event gift goes to that event) */}
+        {!event && <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-2">
           {FUNDS.map(f => (
             <button key={f.key} onClick={() => setFund(f.key)}
               className={`rounded-2xl py-2 transition ${fund===f.key? 'bg-[#006400]' : 'bg-white/10 hover:bg-white/20'}`}>
               {f.label}
             </button>
           ))}
-        </div>
+        </div>}
 
         {/* Recurrence (Stripe only) */}
-        {method==='stripe' && (
+        {method==='stripe' && !event && (
           <div className="mb-6 flex gap-2">
             {(['one_time','monthly'] as Recurrence[]).map(r => (
               <button key={r} onClick={()=> setRecurrence(r)}

@@ -8,6 +8,7 @@ import AdminMessagesButton from '@/components/admin/AdminMessagesButton';
 import PhotoManagerButton from '@/components/admin/PhotoManagerButton';
 import DonationsManagerButton from '@/components/admin/DonationsManagerButton';
 import SocialServiceManagerButton from '@/components/admin/SocialServiceManagerButton';
+import EventsManagerButton from '@/components/admin/EventsManagerButton';
 import SupportNetworkButton from '@/components/admin/SupportNetworkButton';
 import ManageUserRoleButton from '@/components/admin/ManageUserRoleButton';
 import RamadanVolunteersButton from '@/components/admin/RamadanVolunteersButton';
@@ -72,6 +73,9 @@ export default function SuperAdminDashboard() {
        </div>
        <div className="mt-6">
           <SocialServiceManagerButton />
+       </div>
+       <div className="mt-6">
+          <EventsManagerButton />
        </div>
        <div className="mt-6">
           <SupportNetworkButton />
