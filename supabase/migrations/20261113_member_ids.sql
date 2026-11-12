@@ -258,7 +258,7 @@ INSERT INTO public.member_ids (member_uid, name, email) VALUES
   (3053, 'Khandaker Sharmin Ashrafi', 'sarnaphysics@yahoo.com'),
   (8254, 'Lucy Fernanda', 'lucyfernanda2812@gmail.com'),
   (2908, 'Maha Obaid', 'mobaidzia@gmail.com'),
-  (9289, 'Mahmoud Elramly', 'melrmly@yahoo.com'),
+  (9289, 'Mahmoud Mustafa Elramly', 'meanly@yahoo.com'),
   (9487, 'Mahmoud Elnahla', 'md.elnahla@gmail.com'),
   (9351, 'Mahmoud Elnaklawi', 'mahmoudelnaklawi@yahoo.com'),
   (9504, 'Mahzabin Akhter', 'mahzabinakhter8@gmail.com'),
@@ -711,19 +711,19 @@ SELECT hh.id, v.name, v.age, v.phone, v.email, 'male', v.mtype, 0,
        v.designation::public.membership_designation, v.uid, now()
 FROM hh, (VALUES
   ('Mustafa Elramly', 59, '9704889767', 'ramli357@yahoo.com', 'regular', 'head_of_household', 9748),
-  ('Mahmoud Elramly', 25, '9704123673', 'melrmly@yahoo.com',  'regular', 'son_or_son_in_law', 9289)
+  ('Mahmoud Mustafa Elramly', 25, '9702143673', 'meanly@yahoo.com',  'regular', 'son_or_son_in_law', 9289)
 ) AS v(name, age, phone, email, mtype, designation, uid);
 
 WITH hh AS (
   INSERT INTO public.membership_households
     (primary_name, primary_email, primary_phone, recurrence, status, start_date, end_date)
-  VALUES ('Redwan Khalaji', NULL, '9704333048', 'yearly', 'active',
+  VALUES ('Redwan Khalaji', NULL, '9704433048', 'yearly', 'active',
           current_date, (current_date + interval '1 year')::date)
   RETURNING id
 )
 INSERT INTO public.membership_members
   (household_id, name, age, phone, email, sex, membership_type, price_cents, designation, member_uid, age_updated_at)
-SELECT hh.id, 'Redwan Khalaji', 0, '9704333048', NULL, 'male', 'senior', 0,
+SELECT hh.id, 'Redwan Khalaji', 0, '9704433048', NULL, 'male', 'senior', 0,
        'head_of_household'::public.membership_designation, 8758, now()
 FROM hh;
 
