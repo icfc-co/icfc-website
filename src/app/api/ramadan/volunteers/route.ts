@@ -2,9 +2,10 @@
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireAdmin } from '@/lib/require-admin';
+import { sendStaffAlert } from '@/lib/staff-alerts';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL as string | undefined;
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE as string | undefined;
@@ -46,6 +47,16 @@ export async function POST(req: Request) {
       console.error('[ramadan-volunteers] insert error:', insertErr);
       return NextResponse.json({ error: 'Could not save your volunteer signup. Please try again later.' }, { status: 500 });
     }
+
+    after(() => sendStaffAlert('ramadan_volunteers', {
+      title: `New Ramadan volunteer: ${String(name).slice(0, 80)}`,
+      intro: 'Someone signed up to volunteer for Ramadan.',
+      fields: [
+        ['Name', name],
+        ['Phone', phone],
+        ['Preferred team', preferred_team],
+      ],
+    }));
 
     return NextResponse.json({ ok: true, id: inserted?.id, created_at: inserted?.created_at });
   } catch (err: any) {

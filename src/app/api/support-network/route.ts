@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
+import { sendStaffAlert } from '@/lib/staff-alerts';
 import {
   getCaller, present, clean, matchesPreference,
   HELP_TYPES, URGENCIES, STATUSES, PREFERRED_HELPER, RequestRow,
@@ -103,5 +104,20 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await c.service.from('support_requests').insert(row).select('*').single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Address and phone stay out of the email; staff see them on the dashboard
+  after(() => sendStaffAlert('support_network', {
+    title: `New support request${row.urgency === 'urgent' ? ' (URGENT)' : ''}: ${row.help_types.join(', ')}`,
+    intro: 'A member posted a new Community Support Network request.',
+    fields: [
+      ['For', row.recipient_name],
+      ['Help needed', row.help_types.join(', ') + (row.other_help ? ` (${row.other_help})` : '')],
+      ['Urgency', row.urgency.replace('_', ' ')],
+      ['Needed on', row.needed_on ? `${row.needed_on}${row.time_window ? `, ${row.time_window}` : ''}` : row.time_window],
+      ['Area', row.area],
+      ['Details', row.details.slice(0, 400)],
+    ],
+  }));
+
   return NextResponse.json({ ok: true, data: present(data as RequestRow, c) });
 }

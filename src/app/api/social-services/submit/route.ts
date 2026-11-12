@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { headers } from "next/headers";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { sendStaffAlert } from "@/lib/staff-alerts";
 
 export async function POST(req: Request) {
   const h = headers();
@@ -57,6 +58,18 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+
+    after(() => sendStaffAlert("social_services", {
+      title: `New social services request from ${insertRow.requester_name}`,
+      intro: "A new social services request was submitted on the website.",
+      fields: [
+        ["Name", insertRow.requester_name],
+        ["Organization", insertRow.organization],
+        ["Email", insertRow.email],
+        ["Requested for", insertRow.requested_datetime],
+        ["Need", String(insertRow.project_description).slice(0, 400)],
+      ],
+    }));
 
     return NextResponse.json({ ok: true, id: data.id });
   } catch (e: any) {

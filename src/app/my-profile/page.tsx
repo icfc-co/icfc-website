@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import countryList from 'react-select-country-list';
-import { CheckCircleIcon, EnvelopeIcon, PencilSquareIcon, UserCircleIcon, UsersIcon } from '@heroicons/react/24/outline';
+import { BellAlertIcon, CheckCircleIcon, EnvelopeIcon, PencilSquareIcon, UserCircleIcon, UsersIcon } from '@heroicons/react/24/outline';
 import { supabase } from '@/lib/supabaseClient';
 import {
   ManagedMembership, MembershipStatusActions, MultipleMembershipsNotice, useMemberships,
@@ -135,6 +135,7 @@ export default function MyProfilePage() {
       <div className="mx-auto -mt-12 max-w-4xl space-y-6 px-4 sm:px-6">
         <PersonalDetails initial={{ ...EMPTY, ...(data.profile ?? {}), age: (data.profile?.age as number) ?? '' }} onSaved={load} />
         <LoginEmail email={data.email} pending={data.pendingEmail} />
+        {['super_admin', 'admin', 'volunteer'].includes(role) && <StaffAlerts />}
         <Memberships households={data.households} onSaved={load} />
       </div>
     </main>
@@ -288,6 +289,72 @@ function LoginEmail({ email, pending }: { email: string | null; pending: string 
           Change login email
         </button>
       )}
+    </div>
+  );
+}
+
+/* -------------------------------- Email alerts -------------------------------- */
+
+type Alert = { key: string; label: string; on: boolean };
+
+function StaffAlerts() {
+  const [alerts, setAlerts] = useState<Alert[] | null>(null);
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState('');
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    api<{ alerts: Alert[]; email: string }>('/api/profile/alerts')
+      .then((j) => { setAlerts(j.alerts); setEmail(j.email); })
+      .catch((e) => { setErr((e as Error).message); setAlerts([]); });
+  }, []);
+
+  const toggle = async (a: Alert) => {
+    setBusy(a.key);
+    setErr('');
+    try {
+      await api('/api/profile/alerts', { method: 'PUT', body: JSON.stringify({ key: a.key, on: !a.on }) });
+      setAlerts((p) => p?.map((x) => (x.key === a.key ? { ...x, on: !a.on } : x)) ?? p);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  if (alerts && !alerts.length && !err) return null;
+
+  return (
+    <div className={card}>
+      <h2 className="flex items-center gap-2 font-heading text-xl font-bold">
+        <BellAlertIcon className="h-6 w-6 text-primary" aria-hidden /> Email alerts
+      </h2>
+      <p className="mt-3 text-gray-700">
+        We email <strong>{email}</strong> when a new request arrives on a dashboard you can see. Turn off any you don’t need.
+      </p>
+      {alerts === null ? (
+        <p className="mt-4 text-sm text-gray-500">Loading…</p>
+      ) : (
+        <ul className="mt-4 divide-y divide-gray-100">
+          {alerts.map((a) => (
+            <li key={a.key} className="flex items-center justify-between gap-4 py-3">
+              <span className="text-sm font-medium text-gray-800">{a.label}</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={a.on}
+                aria-label={a.label}
+                disabled={busy === a.key}
+                onClick={() => toggle(a)}
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition disabled:opacity-60 ${a.on ? 'bg-primary' : 'bg-gray-300'}`}
+              >
+                <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition ${a.on ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {err && <p className="mt-2 text-sm text-red-600">{err}</p>}
     </div>
   );
 }
