@@ -17,6 +17,7 @@ const SERVICES = [
   { name: 'Ask the Imam', href: '/modules/services/ask-imam' },
   { name: 'Newcomer Support', href: '/modules/services/newcomer-support' },
   { name: 'Social Services', href: '/modules/services/social-services' },
+  { name: 'Nikah / Matrimony', href: '/services/nikah-matrimony' },
   { name: 'Halal Kitchen', href: '/modules/services/halal-kitchen' },
   { name: 'Utilities Pledge', href: '/modules/community/utilities-pledge' },
   { name: 'Masjid Expansion', href: '/expansion' },

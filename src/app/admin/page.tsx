@@ -11,6 +11,7 @@ import SocialServiceManagerButton from '@/components/admin/SocialServiceManagerB
 import EventsManagerButton from '@/components/admin/EventsManagerButton';
 import SupportNetworkButton from '@/components/admin/SupportNetworkButton';
 import RamadanVolunteersButton from '@/components/admin/RamadanVolunteersButton';
+import NikahRequestsButton from '@/components/admin/NikahRequestsButton';
 
 export default function AdminDashboard() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
@@ -73,6 +74,9 @@ export default function AdminDashboard() {
        </div>
        <div className="mt-6">
           <SupportNetworkButton />
+       </div>
+       <div className="mt-6">
+          <NikahRequestsButton />
        </div>
        
         <div className="mt-6">

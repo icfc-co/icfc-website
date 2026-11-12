@@ -12,6 +12,7 @@ import EventsManagerButton from '@/components/admin/EventsManagerButton';
 import SupportNetworkButton from '@/components/admin/SupportNetworkButton';
 import ManageUserRoleButton from '@/components/admin/ManageUserRoleButton';
 import RamadanVolunteersButton from '@/components/admin/RamadanVolunteersButton';
+import NikahRequestsButton from '@/components/admin/NikahRequestsButton';
 
 export default function SuperAdminDashboard() {
   const [loading, setLoading] = useState(true);
@@ -79,6 +80,9 @@ export default function SuperAdminDashboard() {
        </div>
        <div className="mt-6">
           <SupportNetworkButton />
+       </div>
+       <div className="mt-6">
+          <NikahRequestsButton />
        </div>
        <div className="mt-6">
           <ManageUserRoleButton/>
