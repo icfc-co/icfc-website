@@ -26,16 +26,12 @@
 }
 
 
+/* The site is designed for light colors only. Phones in dark mode used to get
+   near-white text on our white cards and inputs, so always render light. */
 :root {
   --background: #ffffff;
   --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  color-scheme: light only;
 }
 
 body {

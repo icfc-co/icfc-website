@@ -14,6 +14,12 @@ export const metadata = {
   description: "Islamic Center of Fort Collins – Official Website",
 };
 
+// Always render light: the design has no dark theme, and dark-mode phones
+// otherwise darken inputs and controls
+export const viewport = {
+  colorScheme: "light",
+};
+
 // Load Arabic font once and expose as a CSS variable
 const arabic = Noto_Naskh_Arabic({
   subsets: ["arabic"],
