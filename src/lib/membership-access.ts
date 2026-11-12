@@ -1,4 +1,4 @@
-// Server-only helpers for /api/profile routes.
+// Server-only helpers: which membership households a signed-in user can see and manage.
 import { SupabaseClient, User } from '@supabase/supabase-js';
 
 export const norm = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
@@ -15,6 +15,9 @@ export type HouseholdRow = {
   start_date: string | null;
   end_date: string | null;
   subscription_status: string | null;
+  stripe_subscription_id?: string | null;
+  current_period_end?: string | null;
+  status?: string | null;
   created_at: string;
   is_duplicate?: boolean | null;
 };

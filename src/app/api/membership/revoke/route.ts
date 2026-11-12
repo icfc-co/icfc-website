@@ -1,75 +1,54 @@
-import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
-import { createClient } from '@supabase/supabase-js';
+import { NextRequest, NextResponse } from 'next/server';
+import { getAuthUser } from '@/lib/auth-user';
+import { membershipFor, stripeClient } from '@/lib/membership-status';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-async function findLatestHouseholdByUserOrEmail(supabase: any, uid: string, email?: string) {
-  // 1) by user_id
-  let { data: hh, error } = await supabase
-    .from('membership_households')
-    .select('*')
-    .eq('user_id', uid)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (hh) return hh;
-
-  // 2) by primary_email (case-insensitive)
-  if (email) {
-    const { data: hhByEmail } = await supabase
-      .from('membership_households')
-      .select('*')
-      .ilike('primary_email', email.trim())
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (hhByEmail) return hhByEmail;
-  }
-
-  return null;
-}
-
-export async function POST() {
+// POST { action: 'cancel' | 'resume' }
+//  - Auto-renewing membership: cancel (or undo cancelling) the Stripe subscription at the
+//    end of the paid period. Membership stays active until then; the webhook syncs status.
+//  - One-time membership: cancel ends it today (status 'revoked').
+export async function POST(req: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get: (k) => cookieStore.get(k)?.value,
-          set: (k, v, o) => cookieStore.set(k, v, o),
-          remove: (k, o) => cookieStore.set(k, '', { ...o, maxAge: 0 }),
-        },
-      }
-    );
+    const auth = await getAuthUser(req);
+    if (!auth) return NextResponse.json({ error: 'Please sign in.' }, { status: 401 });
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    const state = await membershipFor(auth.service, auth.user);
+    if (!state) return NextResponse.json({ error: 'No membership found.' }, { status: 404 });
+    if (!state.isPrimary) {
+      return NextResponse.json({ error: 'Only the household’s primary contact can change the membership.' }, { status: 403 });
+    }
 
-    const hh = await findLatestHouseholdByUserOrEmail(supabase, user.id, user.email || undefined);
-    if (!hh) return NextResponse.json({ error: 'No household found' }, { status: 404 });
+    const body = await req.json().catch(() => ({} as { action?: string }));
+    const action = body.action === 'resume' ? 'resume' : 'cancel';
+    const sub = state.subscription;
+
+    if (action === 'resume') {
+      if (!state.canResume || !sub) return NextResponse.json({ error: 'Nothing to resume.' }, { status: 400 });
+      await stripeClient().subscriptions.update(sub.id, { cancel_at_period_end: false });
+      return NextResponse.json({ ok: true });
+    }
+
+    if (!state.canCancel) return NextResponse.json({ error: 'This membership cannot be cancelled.' }, { status: 400 });
+
+    if (state.autoRenew && !sub) {
+      return NextResponse.json({ error: 'We could not reach the payment system. Please try again in a few minutes.' }, { status: 503 });
+    }
+    if (state.autoRenew && sub) {
+      await stripeClient().subscriptions.update(sub.id, { cancel_at_period_end: true });
+      return NextResponse.json({ ok: true, endsOn: state.endsOn });
+    }
 
     const today = new Date().toISOString().slice(0, 10);
-
-    // Households aren't client-writable; the lookup above (RLS: owner or exact email) proves ownership
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-    const { error: updErr } = await supabaseAdmin
+    const { error } = await auth.service
       .from('membership_households')
       .update({ status: 'revoked', end_date: today })
-      .eq('id', hh.id);
-
-    if (updErr) return NextResponse.json({ error: updErr.message }, { status: 400 });
-
-    return NextResponse.json({ ok: true, end_date: today });
-  } catch (e: any) {
-    console.error('revoke error', e);
-    return NextResponse.json({ error: e?.message || 'Server error' }, { status: 500 });
+      .eq('id', state.household.id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, endsOn: today });
+  } catch (e) {
+    console.error('membership cancel error', e);
+    return NextResponse.json({ error: (e as Error).message || 'Server error' }, { status: 500 });
   }
 }

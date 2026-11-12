@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth-user';
-import { HouseholdRow, MemberRow, PHONE_OK, householdsFor, isActive, isPrimaryOf, likeExact, norm } from './shared';
+import { HouseholdRow, MemberRow, PHONE_OK, householdsFor, isActive, isPrimaryOf, likeExact, norm } from '@/lib/membership-access';
 
 export const dynamic = 'force-dynamic';
 
