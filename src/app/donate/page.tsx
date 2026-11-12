@@ -14,7 +14,7 @@ const FUNDS = [
   { key: 'zakat',        label: 'Zakat' },
   { key: 'cemetery',     label: 'Cemetery' },
   { key: 'imam_salary',  label: 'Imam/Alim Salary' },
-  { key: 'membership',         label: 'Membership' },
+  { key: 'utilities',    label: 'Utilities' },
   { key: 'other',         label: 'Other' },
 ];
 

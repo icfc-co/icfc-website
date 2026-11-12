@@ -8,7 +8,7 @@ const FUND_LABELS: Record<string, string> = {
   zakat: "Zakat",
   cemetery: "Cemetery",
   imam_salary: "Imam/Alim Salary",
-  membership: "Membership",
+  utilities: "Utilities",
   other: "Other",
 };
 
@@ -47,7 +47,12 @@ export async function POST(req: Request) {
     } catch (e) {
       return NextResponse.json({ error: (e as Error).message }, { status: 400 });
     }
-    const fund = event ? "event" : String((body as any)?.fund ?? "membership");
+    const fund = event ? "event" : String((body as any)?.fund ?? "general").toLowerCase();
+    // The webhook treats fund "membership" as a membership purchase (household +
+    // members), so a donation must never use it. Memberships have their own checkout.
+    if (fund === "membership") {
+      return NextResponse.json({ error: "Memberships are purchased on the membership registration page." }, { status: 400 });
+    }
     const productName = event
       ? `Donation for ${event.title}`
       : `Donation to ICFC — ${FUND_LABELS[fund] ?? fund.replace(/_/g, " ")}`;

@@ -613,12 +613,11 @@ export async function POST(req: Request) {
       }
 
       /* =======================================================================
-       * C) SUBSCRIPTION CHANGES — household status sync + optional legacy membership sync
+       * C) SUBSCRIPTION CHANGES — household status sync
        * ======================================================================= */
       case "customer.subscription.updated":
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
-        const customerId = sub.customer as string;
         const status = sub.status;
 
         // Keep membership households in sync (drives the members directory)
@@ -630,51 +629,10 @@ export async function POST(req: Request) {
           if (hhUpd.error) await log("household_subscription_sync_failed", "webhook", { subscription_id: sub.id }, hhUpd.error.message);
         }
 
-        const { data: m, error } = await admin
-          .from("memberships")
-          .select("user_id")
-          .eq("stripe_customer_id", customerId)
-          .maybeSingle();
-        if (error) throw error;
-
-        if (!m?.user_id) {
-          await log("membership_not_found_for_customer", "webhook", { customerId });
-          break;
-        }
-
-        const item = sub.items.data[0];
-        const startISO = iso(sub.current_period_start);
-        const endISO = iso(sub.current_period_end);
-
-        const res = await admin.from("memberships").upsert(
-          {
-            user_id: m.user_id,
-            status,
-            plan: item?.price?.nickname ?? "standard",
-            period: item?.price?.recurring?.interval ?? "year",
-            amount_cents: item?.price?.unit_amount ?? 0,
-            stripe_customer_id: customerId,
-            stripe_subscription_id: sub.id,
-            plan_type: "subscription",
-            start_date: startISO,
-            end_date: endISO,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id" }
-        );
-        if (res.error) {
-          await log("membership_upsert_error_sub", "webhook", { user_id: m.user_id }, res.error.message);
-          throw res.error;
-        }
-        await log("membership_upsert_ok_sub", { user_id: m.user_id, status } as any, {});
-
-        if (status === "canceled" || status === "unpaid" || status === "incomplete_expired") {
-          const { error: dErr } = await admin.rpc("service_set_user_role", { p_user_id: m.user_id });
-          if (dErr) await log("service_set_user_role_failed", "webhook", { user_id: m.user_id }, dErr.message);
-        } else {
-          const { error: pErr } = await admin.rpc("service_set_member_role", { p_user_id: m.user_id });
-          if (pErr) await log("service_set_member_role_failed", "webhook", { user_id: m.user_id }, pErr.message);
-        }
+        // Member roles follow household dates (sync_member_role at login), so no
+        // per-user role change is needed here. (The old public.memberships sync was
+        // removed: that table no longer exists and made every update fail.)
+        await log("household_subscription_sync_ok", "webhook", { subscription_id: sub.id, status });
         break;
       }
 
@@ -686,6 +644,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ received: true });
   } catch (e: any) {
     await log("handler_failed", "webhook", { type: (event as any)?.type }, e?.message);
+    // Un-mark the event so Stripe's automatic retry is processed instead of skipped
+    await admin.from("processed_events").delete().eq("event_id", event.id);
     return NextResponse.json({ error: e?.message || "Webhook error" }, { status: 500 });
   }
 }
