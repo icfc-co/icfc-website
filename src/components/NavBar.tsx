@@ -197,11 +197,11 @@ export default function NavBar() {
         {({ open, close }) => (
           <>
             <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-              <div className="flex h-16 items-center justify-between gap-4 lg:h-20">
+              <div className="flex h-20 items-center justify-between gap-3">
                 {/* Logo */}
                 <Link href="/" className="flex shrink-0 items-center gap-3" aria-label="ICFC home">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/images/icfc-logo.png" alt="Islamic Center of Fort Collins" width={600} height={366} className="h-12 w-auto object-contain lg:h-16" />
+                  <img src="/images/icfc-logo.png" alt="Islamic Center of Fort Collins" width={600} height={366} className="h-[68px] w-auto object-contain lg:h-16" />
                 </Link>
 
                 {/* Desktop nav */}
@@ -342,7 +342,7 @@ export default function NavBar() {
             </div>
 
             {/* Mobile menu panel */}
-            <Disclosure.Panel className="max-h-[calc(100vh-4rem)] overflow-y-auto border-t border-gray-100 bg-white px-4 pb-6 pt-2 lg:hidden">
+            <Disclosure.Panel className="max-h-[calc(100vh-5rem)] overflow-y-auto border-t border-gray-100 bg-white px-4 pb-6 pt-2 lg:hidden">
               <nav className="divide-y divide-gray-100">
                 {TOP_LINKS.map((item) => (
                   <Link

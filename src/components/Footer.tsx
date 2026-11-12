@@ -25,7 +25,7 @@ const SERVICES = [
 export default function Footer() {
   return (
     <footer className="bg-[#004d00] font-body text-white">
-      <div className="mx-auto grid max-w-7xl grid-cols-2 gap-x-6 gap-y-10 px-4 py-12 sm:px-6 lg:grid-cols-[1.1fr_0.8fr_0.9fr_1.3fr] lg:gap-x-10 lg:px-8">
+      <div className="mx-auto grid max-w-7xl grid-cols-2 gap-x-6 gap-y-10 px-4 py-12 sm:px-6 lg:grid-cols-[1.2fr_0.8fr_0.9fr_1fr_1.3fr] lg:gap-x-8 lg:px-8">
         {/* About */}
         <div className="col-span-2 lg:col-span-1">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -85,24 +85,27 @@ export default function Footer() {
               </a>
             </li>
           </ul>
-          {/* Small map */}
-          <div className="mt-5 overflow-hidden rounded-xl ring-1 ring-white/20">
-            <iframe
-              title="Map to the Islamic Center of Fort Collins"
-              src={MAPS.embed}
-              className="block h-40 w-full border-0"
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-            />
-          </div>
           <a
             href={MAPS.directions}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-3 inline-flex items-center gap-2 rounded-full bg-secondary px-5 py-2 text-sm font-semibold text-gray-900 transition hover:brightness-95"
+            className="mt-5 inline-flex items-center gap-2 rounded-full bg-secondary px-5 py-2 text-sm font-semibold text-gray-900 transition hover:brightness-95"
           >
             Get directions <ArrowTopRightOnSquareIcon className="h-4 w-4" aria-hidden />
           </a>
+        </div>
+
+        {/* Small map, far right on large screens */}
+        <div className="col-span-2 lg:col-span-1">
+          <div className="h-48 overflow-hidden rounded-xl ring-1 ring-white/20 lg:h-full lg:min-h-[13rem]">
+            <iframe
+              title="Map to the Islamic Center of Fort Collins"
+              src={MAPS.embed}
+              className="block h-full w-full border-0"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+          </div>
         </div>
       </div>
 
