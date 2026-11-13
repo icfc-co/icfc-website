@@ -135,7 +135,7 @@ export default function StaffDashboard({ variant }: { variant: StaffRole }) {
         {f && variant !== 'volunteer' && (
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {[
-              { label: 'Active memberships', value: f.active_households, sub: f.active_people != null ? `${f.active_people} people` : null, href: '/admin/members' },
+              { label: 'Members this season', value: f.active_people, sub: f.active_households != null ? `${f.active_households} households` : null, href: '/admin/members' },
               { label: 'Expiring in 30 days', value: f.expiring_30, sub: 'one-time memberships', href: '/admin/members' },
               { label: 'Donations this month', value: f.donations_month_cents != null ? usd0(f.donations_month_cents) : null, sub: 'completed', href: '/admin/donations' },
               { label: 'Events next 30 days', value: f.upcoming_events, sub: f.live_announcements ? `${f.live_announcements} live announcement${f.live_announcements === 1 ? '' : 's'}` : null, href: '/admin/events' },

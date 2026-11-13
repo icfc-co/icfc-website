@@ -1,7 +1,8 @@
 // Server-only: data for the staff dashboards (src/components/dashboard/StaffDashboard.tsx).
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CountKey, StaffRole, countsFor } from '@/lib/dashboard-tools';
-import { HouseholdRow, isActive } from '@/lib/membership-access';
+import { HouseholdRow } from '@/lib/membership-access';
+import { currentSeasonStart } from '@/lib/membership-season';
 import { zonedInputToIso } from '@/lib/events';
 
 const TZ = 'America/Denver';
@@ -43,32 +44,35 @@ export async function staffDashboard(service: SupabaseClient, userId: string) {
     const in30 = new Date(now.getTime() + 30 * 86_400_000);
     const monthStart = `${dayKey(now).slice(0, 7)}-01`;
 
-    const [households, events, gifts, live] = await Promise.all([
-      service.from('membership_households').select('id, end_date, subscription_status, is_duplicate').range(0, 4999),
+    // Same rule and function as the Members Directory's default view, so the numbers match
+    const season = currentSeasonStart();
+    const [directory, events, gifts, live] = await Promise.all([
+      service.rpc('members_directory', { p_purchased_from: zonedInputToIso(`${season}T00:00`), p_qualify: 'any' })
+        .select('household_id').range(0, 9999),
       count('events', (q) => q.eq('status', 'published').gte('starts_at', now.toISOString()).lte('starts_at', in30.toISOString())),
       service.from('donations').select('amount_cents').eq('status', 'succeeded').gte('created_at', zonedInputToIso(`${monthStart}T00:00`) ?? `${monthStart}T00:00:00Z`).range(0, 9999),
       count('announcements', (q) => q.eq('published', true).or(`expires_at.is.null,expires_at.gt."${now.toISOString()}"`)),
     ]);
 
-    const active = ((households.data ?? []) as HouseholdRow[]).filter(isActive);
+    const rows = (directory.data ?? []) as { household_id: string | null }[];
+    const hhIds = [...new Set(rows.map((r) => r.household_id).filter(Boolean))] as string[];
+
+    // Of those households, one-time memberships ending in the next 30 days
     const today = dayKey(now);
     const soon = dayKey(in30);
-    const expiring = active.filter((h) => h.subscription_status !== 'active' && h.end_date && h.end_date >= today && h.end_date <= soon);
-    let people: number | null = null;
-    if (active.length) {
-      const ids = active.map((h) => h.id);
-      people = 0;
-      for (let i = 0; i < ids.length; i += 200) {
-        const n = await count('membership_members', (q) => q.in('household_id', ids.slice(i, i + 200)));
-        people = n == null ? null : (people ?? 0) + n;
-        if (people == null) break;
-      }
+    let expiring: number | null = directory.error ? null : 0;
+    for (let i = 0; expiring != null && i < hhIds.length; i += 200) {
+      const { data, error } = await service.from('membership_households')
+        .select('id, end_date, subscription_status').in('id', hhIds.slice(i, i + 200));
+      if (error) { expiring = null; break; }
+      expiring += ((data ?? []) as Pick<HouseholdRow, 'end_date' | 'subscription_status'>[])
+        .filter((h) => h.subscription_status !== 'active' && h.end_date && h.end_date >= today && h.end_date <= soon).length;
     }
 
     figures = {
-      active_households: households.error ? null : active.length,
-      active_people: people,
-      expiring_30: households.error ? null : expiring.length,
+      active_households: directory.error ? null : hhIds.length,
+      active_people: directory.error ? null : rows.length,
+      expiring_30: expiring,
       upcoming_events: events,
       donations_month_cents: gifts.error ? null : (gifts.data ?? []).reduce((s, g) => s + ((g as { amount_cents: number }).amount_cents ?? 0), 0),
       live_announcements: live,
