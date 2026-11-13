@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { resolveDonationEvent } from '@/lib/event-donation';
+import { sendStaffAlert, usd } from '@/lib/staff-alerts';
 
 export const runtime = 'nodejs';
 
@@ -72,6 +73,19 @@ export async function POST(req: NextRequest) {
     });
     if (zErr) return bad(zErr.message, 500);
   }
+
+  after(() => sendStaffAlert('donations_to_verify', {
+    title: `Zelle donation to verify: ${usd(amountCents)}`,
+    intro: 'A donor reported a Zelle donation. Please match it against the bank account and mark it verified.',
+    fields: [
+      ['Amount', usd(amountCents)],
+      ['Fund', event ? `Event: ${event.title}` : fund],
+      ['Donor', [donorName, donorEmail].filter(Boolean).join(' · ')],
+      ['Zelle ref (last 4)', String(last4).trim()],
+      ['Transfer date', transferDate],
+      ['Note', note],
+    ],
+  }));
 
   return NextResponse.json({ ok: true, donation_id: ins.id });
 }

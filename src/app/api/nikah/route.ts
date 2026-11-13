@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { sendStaffAlert } from '@/lib/staff-alerts';
 import {
   IMPEDIMENT_OPTS, KAFAAH_OPTS, LICENSE_OPTS, MAHR_OPTS, REQUIREMENTS, WALI_OPTS, WITNESS_OPTS,
-  todayInFortCollins,
+  NikahRow, fmtDate, fmtTime, nikahFlags, todayInFortCollins,
 } from '@/lib/nikah';
 
 export const runtime = 'nodejs';
@@ -125,5 +126,20 @@ export async function POST(req: NextRequest) {
     console.error('[nikah] insert error:', error);
     return NextResponse.json({ error: 'Could not save your request. Please try again or call the office.' }, { status: 500 });
   }
+
+  const flags = nikahFlags(row as unknown as NikahRow);
+  after(() => sendStaffAlert('nikah', {
+    title: `New Nikah request: ${row.groom_name} & ${row.bride_name}`,
+    intro: 'A couple submitted a Nikah request on the website.',
+    fields: [
+      ['Groom', row.groom_name],
+      ['Bride', row.bride_name],
+      ['Requested', `${fmtDate(row.nikah_date)} at ${fmtTime(row.nikah_time)}`],
+      ['Location', row.location.toUpperCase() === 'ICFC' ? 'ICFC' : `${row.location} (off-site)`],
+      ['Contact', row.contact_email],
+      ['Needs follow-up', flags.length ? flags.join('\n') : 'Nothing flagged'],
+    ],
+  }));
+
   return NextResponse.json({ ok: true, id: data.id });
 }

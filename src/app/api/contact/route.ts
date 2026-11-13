@@ -4,8 +4,9 @@
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { sendStaffAlert } from '@/lib/staff-alerts';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL as string | undefined;
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE as string | undefined; // server-only
@@ -64,6 +65,18 @@ export async function POST(req: Request) {
         );
       if (subErr) console.error('[contact] newsletter upsert error:', subErr);
     }
+
+    after(() => sendStaffAlert('contact', {
+      title: `New message: ${String(subject).slice(0, 80)}`,
+      intro: 'A new message was sent from the website contact form.',
+      fields: [
+        ['From', `${name} <${email}>`],
+        ['Phone', phone],
+        ['Reason', reason],
+        ['Subject', subject],
+        ['Message', String(message).length > 400 ? `${String(message).slice(0, 400)}…` : message],
+      ],
+    }));
 
     return NextResponse.json({ ok: true, id: inserted?.id, created_at: inserted?.created_at });
   } catch (err: any) {

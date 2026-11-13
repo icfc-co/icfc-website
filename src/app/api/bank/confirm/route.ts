@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { resolveDonationEvent } from '@/lib/event-donation';
+import { sendStaffAlert, usd } from '@/lib/staff-alerts';
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -59,6 +60,19 @@ export async function POST(req: NextRequest) {
   if (ins2.error) {
     return NextResponse.json({ error: ins2.error.message }, { status: 500 });
   }
+
+  after(() => sendStaffAlert('donations_to_verify', {
+    title: `Bank transfer to verify: ${usd(amountCents)}`,
+    intro: 'A donor reported a bank transfer. Please match it against the bank account and mark it verified.',
+    fields: [
+      ['Amount', usd(amountCents)],
+      ['Fund', event ? `Event: ${event.title}` : (fund || 'general')],
+      ['Donor', [donorName, donorEmail].filter(Boolean).join(' · ')],
+      ['Transaction ID', String(transactionId).trim()],
+      ['Transfer date', transferDate],
+      ['Note', note],
+    ],
+  }));
 
   return NextResponse.json({ ok: true, donationId: insertDonation.data.id });
 }
