@@ -18,6 +18,9 @@ type Data = {
     active_households: number | null;
     active_people: number | null;
     expiring_30: number | null;
+    one_time: number | null;
+    auto_renew: number | null;
+    next_expiry: string | null;
     upcoming_events: number | null;
     donations_month_cents: number | null;
     live_announcements: number | null;
@@ -135,8 +138,12 @@ export default function StaffDashboard({ variant }: { variant: StaffRole }) {
         {f && variant !== 'volunteer' && (
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {[
-              { label: 'Members this season', value: f.active_people, sub: f.active_households != null ? `${f.active_households} households` : null, href: '/admin/members' },
-              { label: 'Expiring in 30 days', value: f.expiring_30, sub: 'one-time memberships', href: '/admin/members' },
+              { label: 'Members this season', value: f.active_people, href: '/admin/members',
+                sub: f.active_households != null
+                  ? `${f.active_households} households${f.one_time != null ? ` · ${f.one_time} one-time, ${f.auto_renew} auto-renew` : ''}`
+                  : null },
+              { label: 'Memberships expiring in 30 days', value: f.expiring_30, href: '/admin/members',
+                sub: f.next_expiry ? `Next one ends ${new Date(f.next_expiry + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : 'Auto-renewing ones not included' },
               { label: 'Donations this month', value: f.donations_month_cents != null ? usd0(f.donations_month_cents) : null, sub: 'completed', href: '/admin/donations' },
               { label: 'Events next 30 days', value: f.upcoming_events, sub: f.live_announcements ? `${f.live_announcements} live announcement${f.live_announcements === 1 ? '' : 's'}` : null, href: '/admin/events' },
             ].map((k) => (

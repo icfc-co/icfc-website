@@ -38,7 +38,7 @@ export async function staffDashboard(service: SupabaseClient, userId: string) {
   const values = await Promise.all(keys.map((k) => QUERIES[k]()));
   const counts = Object.fromEntries(keys.map((k, i) => [k, values[i]]));
 
-  let figures: Record<string, number | null> | null = null;
+  let figures: Record<string, number | string | null> | null = null;
   if (role !== 'volunteer') {
     const now = new Date();
     const in30 = new Date(now.getTime() + 30 * 86_400_000);
@@ -60,22 +60,35 @@ export async function staffDashboard(service: SupabaseClient, userId: string) {
     // Of those households, one-time memberships ending in the next 30 days
     const today = dayKey(now);
     const soon = dayKey(in30);
+    // Split into one-time payments and auto-renewing subscriptions; find the next one-time expiry
     let expiring: number | null = directory.error ? null : 0;
+    let oneTime: number | null = expiring;
+    let autoRenew: number | null = expiring;
+    let nextExpiry: string | null = null;
     for (let i = 0; expiring != null && i < hhIds.length; i += 200) {
       const { data, error } = await service.from('membership_households')
         .select('id, end_date, subscription_status').in('id', hhIds.slice(i, i + 200));
-      if (error) { expiring = null; break; }
-      expiring += ((data ?? []) as Pick<HouseholdRow, 'end_date' | 'subscription_status'>[])
-        .filter((h) => h.subscription_status !== 'active' && h.end_date && h.end_date >= today && h.end_date <= soon).length;
+      if (error) { expiring = oneTime = autoRenew = null; break; }
+      for (const h of (data ?? []) as Pick<HouseholdRow, 'end_date' | 'subscription_status'>[]) {
+        if (h.subscription_status === 'active') { autoRenew!++; continue; }
+        oneTime!++;
+        if (h.end_date && h.end_date >= today) {
+          if (h.end_date <= soon) expiring++;
+          if (!nextExpiry || h.end_date < nextExpiry) nextExpiry = h.end_date;
+        }
+      }
     }
 
     figures = {
       active_households: directory.error ? null : hhIds.length,
       active_people: directory.error ? null : rows.length,
       expiring_30: expiring,
+      one_time: oneTime,
+      auto_renew: autoRenew,
       upcoming_events: events,
       donations_month_cents: gifts.error ? null : (gifts.data ?? []).reduce((s, g) => s + ((g as { amount_cents: number }).amount_cents ?? 0), 0),
       live_announcements: live,
+      next_expiry: nextExpiry,
     };
   }
 
