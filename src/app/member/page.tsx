@@ -1,12 +1,15 @@
 'use client';
 
 import Link from 'next/link';
+import AnnouncementCards from '@/components/announcements/AnnouncementCards';
 
 export default function MemberDashboard() {
   return (
     <section className="px-4 py-6">
       <h1 className="text-2xl font-bold">Welcome, Member</h1>
       <p>This is your Member dashboard.</p>
+
+      <AnnouncementCards scope="members" title="Member announcements" className="mt-6 max-w-4xl" />
 
       <div className="mt-6">
         <Link

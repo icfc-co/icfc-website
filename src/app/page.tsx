@@ -9,6 +9,7 @@ import {
 import GalleryCarousel from '@/components/gallery/GalleryCarousel';
 import PrayerTimesCard from '@/components/home/PrayerTimesCard';
 import UpcomingEvents from '@/components/home/UpcomingEvents';
+import AnnouncementCards from '@/components/announcements/AnnouncementCards';
 import { SITE, MAPS } from '@/lib/site';
 // Seasonal: uncomment for Ramadan / Eid
 // import RamadanPromoSection from '@/components/home/RamadanPromoSection';
@@ -149,6 +150,9 @@ export default function HomePage() {
           ))}
         </div>
       </section>
+
+      {/* Announcements for everyone (hidden when there are none) */}
+      <AnnouncementCards scope="public" className="mx-auto max-w-7xl px-4 pt-12 sm:px-6 lg:px-8" />
 
       {/* This week at ICFC */}
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">

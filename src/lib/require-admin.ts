@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 export type RequireAdminOk = {
   ok: true;
   service: ReturnType<typeof createClient>;
+  user: { id: string; email?: string };
 };
 export type RequireAdminFail = { ok: false; status: 401 | 403; error: string };
 export type RequireAdminResult = RequireAdminOk | RequireAdminFail;
@@ -51,5 +52,5 @@ export async function requireAdmin(
     { auth: { persistSession: false, autoRefreshToken: false } }
   );
 
-  return { ok: true, service };
+  return { ok: true, service, user: { id: user.id, email: user.email } };
 }
