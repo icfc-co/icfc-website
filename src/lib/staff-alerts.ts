@@ -2,36 +2,17 @@
 // whose role can open the matching dashboard (see src/middleware.ts), minus
 // anyone who muted that alert in My Profile (staff_alert_prefs).
 //
-// Mail goes out through the icfc.org Google Workspace account in SMTP_USER
-// using an App Password (SMTP_PASS). Without them, alerts are skipped and logged.
-import nodemailer, { type Transporter } from 'nodemailer';
+// Mail goes out through src/lib/mailer.ts. Without SMTP settings, alerts are
+// skipped and logged.
 import { serviceClient } from '@/lib/auth-user';
 import { ALERTS, AlertKey } from '@/lib/staff-alert-kinds';
+import { SITE_URL, esc, fromAddress, getMailer, oneLine } from '@/lib/mailer';
 
 export type AlertField = [label: string, value: string | number | null | undefined];
 
 // Exact amount (staff match these against the bank statement)
 export const usd = (cents: number) =>
   (Number(cents) / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://www.icfc.org').replace(/\/$/, '');
-
-const esc = (s: string) =>
-  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-// Header-safe single line (no CR/LF), length-capped
-const oneLine = (s: string, max = 150) => s.replace(/[\r\n]+/g, ' ').trim().slice(0, max);
-
-let transport: Transporter | null = null;
-function mailer() {
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) return null;
-  transport ??= nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: Number(process.env.SMTP_PORT || 465),
-    secure: Number(process.env.SMTP_PORT || 465) === 465,
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS.replace(/\s+/g, '') },
-  });
-  return transport;
-}
 
 function render(title: string, intro: string, fields: AlertField[], url: string, alertLabel: string) {
   const rows = fields
@@ -70,7 +51,7 @@ function render(title: string, intro: string, fields: AlertField[], url: string,
 export async function sendStaffAlert(key: AlertKey, opts: { title: string; intro: string; fields: AlertField[] }) {
   try {
     const alert = ALERTS[key];
-    const mail = mailer();
+    const mail = getMailer();
     if (!mail) {
       console.warn(`[staff-alerts] SMTP_USER/SMTP_PASS not set; skipped "${key}" alert`);
       return;
@@ -89,7 +70,7 @@ export async function sendStaffAlert(key: AlertKey, opts: { title: string; intro
       byPath.get(path)!.add(r.email);
     }
 
-    const from = `"${process.env.ALERT_FROM_NAME || 'ICFC Website'}" <${process.env.SMTP_USER}>`;
+    const from = fromAddress(process.env.ALERT_FROM_NAME || 'ICFC Website');
     const subject = oneLine(`[ICFC] ${opts.title}`);
     await Promise.all([...byPath].map(([path, emails]) => {
       const { html, text } = render(opts.title, opts.intro, opts.fields, SITE_URL + path, alert.label);

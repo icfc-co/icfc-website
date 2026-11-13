@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import countryList from 'react-select-country-list';
 import { BellAlertIcon, CheckCircleIcon, EnvelopeIcon, PencilSquareIcon, UserCircleIcon, UsersIcon } from '@heroicons/react/24/outline';
 import { supabase } from '@/lib/supabaseClient';
+import AnnouncementCards from '@/components/announcements/AnnouncementCards';
 import {
   ManagedMembership, MembershipStatusActions, MultipleMembershipsNotice, useMemberships,
 } from '@/components/membership/MembershipStatus';
@@ -133,6 +134,7 @@ export default function MyProfilePage() {
       </section>
 
       <div className="mx-auto -mt-12 max-w-4xl space-y-6 px-4 sm:px-6">
+        <AnnouncementCards scope="members" title="Member announcements" className={card} />
         <PersonalDetails initial={{ ...EMPTY, ...(data.profile ?? {}), age: (data.profile?.age as number) ?? '' }} onSaved={load} />
         <LoginEmail email={data.email} pending={data.pendingEmail} />
         {['super_admin', 'admin', 'volunteer'].includes(role) && <StaffAlerts />}
