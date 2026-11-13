@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
+import { currentSeasonStart } from "@/lib/membership-season";
 
 export type Member = {
   id: string;
@@ -66,14 +67,7 @@ const MEMBER_TYPES = [
 ] as const;
 type MemberTypeKey = (typeof MEMBER_TYPES)[number]["key"];
 
-// Members re-purchase each season; by default show this season's purchases
-// plus anyone whose yearly subscription is still active.
-// The season starts every September 1st: use the most recent one on or before today.
-const SEASON_START_MONTH = 9; // September
-function currentSeasonStart(today = new Date()): string {
-  const year = today.getMonth() + 1 >= SEASON_START_MONTH ? today.getFullYear() : today.getFullYear() - 1;
-  return `${year}-${String(SEASON_START_MONTH).padStart(2, "0")}-01`;
-}
+// By default show this season's purchases plus active subscriptions (see membership-season.ts)
 const SEASON_START = currentSeasonStart();
 
 const QUALIFY_OPTIONS = [
