@@ -114,7 +114,12 @@ export default function LoginPage() {
     const priority = ['super_admin','admin','volunteer','teacher','student','member','user'];
     const best = priority.find(r => names.includes(r)) ?? 'user';
 
-    router.replace(roleToPath(best));      // ✅ no /redirect 404
+    // Back to the page that sent them here (middleware adds ?next=, e.g. from an email link).
+    // Only same-site paths: "/x" but not "//host" or "/\host", which browsers treat as another site.
+    const next = new URLSearchParams(window.location.search).get('next');
+    const safeNext = next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\') ? next : null;
+
+    router.replace(safeNext ?? roleToPath(best));      // ✅ no /redirect 404
   };
 
   const handleSignup = async () => {

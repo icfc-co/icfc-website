@@ -3,7 +3,14 @@
 // an App Password (SMTP_PASS). Without them, getMailer() returns null.
 import nodemailer, { type Transporter } from 'nodemailer';
 
-export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://www.icfc.org').replace(/\/$/, '');
+// Links in emails always point at the public site: recipients can't open a
+// localhost link, even when the email was sent while testing on a dev machine.
+// EMAIL_SITE_URL overrides this if ever needed (e.g. a staging site).
+const PUBLIC_SITE = 'https://www.icfc.org';
+const envSite = (process.env.EMAIL_SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || '').trim();
+export const SITE_URL = (
+  envSite && !/^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?/i.test(envSite) ? envSite : PUBLIC_SITE
+).replace(/\/$/, '');
 
 export const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
