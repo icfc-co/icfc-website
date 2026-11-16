@@ -30,6 +30,8 @@ export type EventRow = {
   status: 'published' | 'cancelled' | 'draft';
   donations_enabled: boolean;
   donation_goal_cents: number | null;
+  series_id?: string | null;                                    // recurring events share this
+  repeat_rule?: import('@/lib/recurrence').RepeatRule | null;   // the rule that created the series
 };
 
 export const POSTER_BUCKET = 'event-posters';

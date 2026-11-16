@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { requireAdmin } from '@/lib/require-admin';
-import { parseEventInput } from './shared';
+import { expandDates, parseRule } from '@/lib/recurrence';
+import { dayOf, parseEventInput, timesOnDate } from './shared';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,16 +27,30 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ data: events ?? [], totals });
 }
 
-// POST: create an event
+// POST: create an event, or with `repeat` a series (one event per date)
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const service = auth.service as unknown as SupabaseClient;
 
   const body = await req.json().catch(() => ({}));
   const parsed = parseEventInput(body);
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
-  const { data, error } = await auth.service.from('events').insert(parsed.value as never).select('*').single();
+  if (!body.repeat) {
+    const { data, error } = await service.from('events').insert(parsed.value).select('*').single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, data, created: 1 });
+  }
+
+  const rule = parseRule(body.repeat);
+  if (!rule) return NextResponse.json({ error: 'Choose how often it repeats and when it ends.' }, { status: 400 });
+  const dates = expandDates(rule, dayOf(parsed.value.starts_at));
+  if (dates.length < 2) return NextResponse.json({ error: 'This repeat setting only gives one date. Pick a later end date.' }, { status: 400 });
+
+  const series_id = crypto.randomUUID();
+  const rows = dates.map((d) => ({ ...parsed.value, ...timesOnDate(parsed.value, d), series_id, repeat_rule: rule }));
+  const { data, error } = await service.from('events').insert(rows).select('*').order('starts_at').limit(1);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, data });
+  return NextResponse.json({ ok: true, data: data?.[0], created: rows.length });
 }
