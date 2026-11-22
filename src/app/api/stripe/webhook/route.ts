@@ -547,8 +547,10 @@ export async function POST(req: Request) {
       }
 
       /* =======================================================================
-       * B2) INVOICE UPCOMING — days before an auto-renewal charges: youth members who
-       *     will be past the youth max age at renewal move to the regular price
+       * B2) INVOICE UPCOMING — days before an auto-renewal charges, bring every member's
+       *     line to the current price (membership_pricing) for their type at renewal:
+       *     price changes apply at the next renewal, and youth past the youth max age
+       *     move to the regular price.
        * ======================================================================= */
       case "invoice.upcoming": {
         const inv = event.data.object as Stripe.Invoice;
@@ -568,7 +570,6 @@ export async function POST(req: Request) {
         const sub = await stripe.subscriptions.retrieve(subscriptionId, { expand: ["items.data.price.product"] });
         const renewsAt = new Date(subPeriodEnd(sub) ?? Date.now());
         const pricing = await loadActivePricing(admin);
-        const regularCents = pricing["regular"]?.amount_cents ?? 0;
 
         const { data: mems, error: memErr } = await admin
           .from("membership_members")
@@ -578,21 +579,28 @@ export async function POST(req: Request) {
 
         for (const m of mems || []) {
           const item = sub.items.data.find((it) => itemMemberName(it) === String(m.name || "").trim().toLowerCase());
-          // Only touch members who are (or are still billed as) youth; never add a charge for anyone else
-          const billedAsYouth = m.membership_type === "youth" || (item != null && itemIsYouth(item));
-          if (!billedAsYouth) continue;
           const age = ageAt(Number(m.age || 0), m.age_updated_at ?? m.created_at, renewsAt);
-          if (typeForAge("youth", age, pricing) !== "regular") continue;
-          if (item && item.price.unit_amount === regularCents) continue; // already moved
+          const type = typeForAge(m.membership_type || "regular", age, pricing);
+          const target = priceFor(type, age, pricing);
+          const current = item?.price.unit_amount ?? 0;
+          if (current === target) continue;
 
-          const productName = `Membership — ${m.name} (regular)`;
+          // A member without a matching line can only be a free youth who has aged out; anyone
+          // else missing a line is left alone (logged) so a household is never charged twice
+          const billedAsYouth = m.membership_type === "youth" || (item != null && itemIsYouth(item));
+          if (!item && !(billedAsYouth && target > 0)) {
+            if (target > 0) await log("renewal_price_item_not_found", "webhook", { household_id: hh.id, member_id: m.id, subscriptionId });
+            continue;
+          }
+
+          const productName = `Membership — ${m.name} (${type})`;
           try {
             if (item) {
               const p = item.price.product;
               const productId = typeof p === "string" ? p : p.id;
               await stripe.products.update(productId, { name: productName });
               await stripe.subscriptionItems.update(item.id, {
-                price_data: { currency: sub.currency, product: productId, unit_amount: regularCents, recurring: { interval: "year" } },
+                price_data: { currency: sub.currency, product: productId, unit_amount: target, recurring: { interval: "year" } },
                 proration_behavior: "none",
               });
             } else {
@@ -600,13 +608,14 @@ export async function POST(req: Request) {
               const product = await stripe.products.create({ name: productName, metadata: { member_id: String(m.id) } });
               await stripe.subscriptionItems.create({
                 subscription: subscriptionId,
-                price_data: { currency: sub.currency, product: product.id, unit_amount: regularCents, recurring: { interval: "year" } },
+                price_data: { currency: sub.currency, product: product.id, unit_amount: target, recurring: { interval: "year" } },
                 proration_behavior: "none",
               });
             }
-            await log("youth_aged_out_to_regular", "webhook", { household_id: hh.id, member_id: m.id, age, subscriptionId });
+            await admin.from("membership_members").update({ price_cents: target }).eq("id", m.id);
+            await log("renewal_price_updated", "webhook", { household_id: hh.id, member_id: m.id, type, from_cents: current, to_cents: target, subscriptionId });
           } catch (e: any) {
-            await log("youth_aged_out_update_failed", "webhook", { household_id: hh.id, member_id: m.id, subscriptionId }, e?.message);
+            await log("renewal_price_update_failed", "webhook", { household_id: hh.id, member_id: m.id, subscriptionId }, e?.message);
           }
         }
         break;
