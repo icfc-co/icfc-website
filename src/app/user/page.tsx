@@ -1,12 +1,33 @@
 'use client';
 
-import { EnvelopeIcon, InformationCircleIcon, KeyIcon, PhoneIcon } from '@heroicons/react/24/outline';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { ArrowRightIcon, EnvelopeIcon, InformationCircleIcon, KeyIcon, PhoneIcon } from '@heroicons/react/24/outline';
 import { SITE } from '@/lib/site';
 import { BenefitsGrid, DashboardHero, QuickLinks, card, useProfileSummary } from '@/components/dashboard/DashboardParts';
 
-// Membership registration is currently closed (see /modules/registration/membership).
-// When it reopens, replace the notice below with a "Become a member" link to the sign-up form.
-const REGISTRATION_OPEN = false;
+// Set to false while membership registration is closed: the dashboard then shows a
+// "registration is closed" notice with office contacts instead of the sign-up button.
+const REGISTRATION_OPEN = true;
+
+type Prices = Record<string, { amount_cents: number; max_age: number | null }>;
+const usd = (c?: number) => (c == null ? '' : c === 0 ? 'free' : `${(c / 100).toLocaleString('en-US', { maximumFractionDigits: 2 })}`);
+
+// "Regular $50 · Student $25 · Senior $25 · Youth (under 18) free", from the live prices
+function PriceLine() {
+  const [p, setP] = useState<Prices | null>(null);
+  useEffect(() => {
+    fetch('/api/membership/pricing', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => setP(j?.prices ?? null)).catch(() => {});
+  }, []);
+  if (!p) return null;
+  const parts = [
+    p.regular && `Regular ${usd(p.regular.amount_cents)}`,
+    p.student && `Student ${usd(p.student.amount_cents)}`,
+    p.senior && `Senior ${usd(p.senior.amount_cents)}`,
+    p.youth && `Youth${p.youth.max_age != null ? ` (under ${p.youth.max_age + 1})` : ''} ${usd(p.youth.amount_cents)}`,
+  ].filter(Boolean);
+  return <p className="text-sm text-gray-600">Per person, per year: {parts.join(' · ')}</p>;
+}
 
 export default function UserDashboard() {
   const me = useProfileSummary();
@@ -35,7 +56,18 @@ export default function UserDashboard() {
 
           <div className="mt-6"><BenefitsGrid /></div>
 
-          {REGISTRATION_OPEN ? null : (
+          {REGISTRATION_OPEN ? (
+            <div className="mt-6 flex flex-col gap-4 rounded-2xl bg-green-50 p-5 ring-1 ring-green-200 sm:flex-row sm:items-center">
+              <div className="flex-1">
+                <p className="font-heading text-lg font-bold text-gray-900">Membership registration is open</p>
+                <PriceLine />
+              </div>
+              <Link href="/modules/registration/membership"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 font-semibold text-white shadow-sm hover:bg-green-800">
+                Become a member <ArrowRightIcon className="h-4 w-4" aria-hidden />
+              </Link>
+            </div>
+          ) : (
             <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-gray-200 bg-gray-50 p-5 sm:flex-row sm:items-center">
               <InformationCircleIcon className="h-8 w-8 shrink-0 text-primary" aria-hidden />
               <div className="flex-1">
