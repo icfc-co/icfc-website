@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabaseClient';
 import {
   EVENT_CATEGORIES, EVENT_TZ, EventRow, categoryOf, fmtEventTime, fmtEventWhen, posterUrl, zonedDayKey,
 } from '@/lib/events';
+import { describeRule, firstOfSeries } from '@/lib/recurrence';
 
 type View = 'upcoming' | 'month';
 
@@ -63,7 +64,8 @@ export default function EventsPage() {
   const upcoming = useMemo(() => {
     const isPast = (e: EventRow) => zonedDayKey(e.ends_at ?? e.starts_at) < today;
     const list = filtered.filter((e) => (showPast ? isPast(e) : !isPast(e)));
-    return showPast ? [...list].reverse() : list;
+    // A repeating event is listed once (its next date, or latest past one); the month view shows every date
+    return firstOfSeries(showPast ? [...list].reverse() : list);
   }, [filtered, showPast, today]);
 
   const byDay = useMemo(() => {
@@ -240,6 +242,9 @@ function EventCard({ e }: { e: EventRow }) {
           </div>
           <h3 className={`mt-1 text-lg font-semibold ${e.status === 'cancelled' ? 'line-through text-gray-500' : ''}`}>{e.title}</h3>
           <p className="text-sm text-gray-600">{fmtEventWhen(e)}</p>
+          {e.series_id && e.repeat_rule && (
+            <p className="text-sm font-medium text-[#006400]">↻ {describeRule(e.repeat_rule, zonedDayKey(e.starts_at))}</p>
+          )}
           {e.location && <p className="text-sm text-gray-600">{e.location}</p>}
           {e.description && <p className="mt-1 line-clamp-2 text-sm text-gray-700">{e.description}</p>}
         </div>

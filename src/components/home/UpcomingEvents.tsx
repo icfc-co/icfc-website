@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { CalendarDaysIcon } from '@heroicons/react/24/outline';
 import { supabase } from '@/lib/supabaseClient';
-import { EVENT_TZ, EventRow, fmtEventWhen } from '@/lib/events';
+import { EVENT_TZ, EventRow, fmtEventWhen, zonedDayKey } from '@/lib/events';
+import { describeRule, firstOfSeries } from '@/lib/recurrence';
 
 // Next few events from the community calendar
 export default function UpcomingEvents({ limit = 4 }: { limit?: number }) {
@@ -19,8 +20,8 @@ export default function UpcomingEvents({ limit = 4 }: { limit?: number }) {
       .eq('status', 'published')
       .gte('starts_at', from)
       .order('starts_at', { ascending: true })
-      .limit(limit)
-      .then(({ data, error }) => setEvents(error ? [] : ((data as EventRow[]) ?? [])));
+      .limit(limit * 10) // extra rows: a repeating event is shown once
+      .then(({ data, error }) => setEvents(error ? [] : firstOfSeries((data as EventRow[]) ?? []).slice(0, limit)));
   }, [limit]);
 
   return (
@@ -57,6 +58,7 @@ export default function UpcomingEvents({ limit = 4 }: { limit?: number }) {
                   <div className="min-w-0">
                     <p className="font-semibold text-gray-900">{e.title}</p>
                     <p className="text-sm text-gray-600">{fmtEventWhen(e)}</p>
+                    {e.series_id && e.repeat_rule && <p className="text-xs font-medium text-primary">↻ {describeRule(e.repeat_rule, zonedDayKey(e.starts_at))}</p>}
                     {e.donations_enabled && <p className="mt-0.5 text-xs font-medium text-yellow-700">Accepting donations</p>}
                   </div>
                 </Link>

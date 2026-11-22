@@ -4,7 +4,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
-import { EventRow, categoryOf, fmtEventWhen, fmtUsd, posterUrl } from '@/lib/events';
+import { EventRow, categoryOf, fmtEventWhen, fmtUsd, posterUrl, zonedDayKey } from '@/lib/events';
+import { describeRule } from '@/lib/recurrence';
 import EventActions from './EventActions';
 
 export const dynamic = 'force-dynamic';
@@ -78,6 +79,9 @@ export default async function EventPage({ params }: Props) {
 
             <dl className="mt-4 space-y-2 text-gray-800">
               <div className="flex gap-2"><dt className="w-20 shrink-0 font-medium text-gray-500">When</dt><dd>{fmtEventWhen(event)}</dd></div>
+              {event.series_id && event.repeat_rule && (
+                <div className="flex gap-2"><dt className="w-20 shrink-0 font-medium text-gray-500">Repeats</dt><dd>{describeRule(event.repeat_rule, zonedDayKey(event.starts_at))}</dd></div>
+              )}
               {event.location && (
                 <div className="flex gap-2">
                   <dt className="w-20 shrink-0 font-medium text-gray-500">Where</dt>
